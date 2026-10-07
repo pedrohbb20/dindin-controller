@@ -2,6 +2,16 @@
 
 Aplicativo **Dindin Controller**: clone pessoal do Money Tracker (Flutter), para Linux (PC) e Android (celular), com sincronização em nuvem.
 
+## v1.7.0 (07/10/2026)
+- **Transações reformulada**: separada por mês (igual ao Resumo) com filtros de tipo, categorias, bancos, período personalizado (ex.: 05/10 a 10/10), busca por texto e faixa de valor; etiquetas do que está ativo (com X para tirar) e resumo com entradas/saídas do resultado.
+- **Aba Ajustes (nova)**: modo claro/escuro/sistema, 13 cores predefinidas (verde neon, vinho, rosa, azul bebê, marinho...) e personalizado com cor principal + destaque (mescla), com prévia ao vivo. Fica salvo por aparelho.
+- **Fila de revisão da importação**: o Resumo avisa quantos lançamentos os bancos trouxeram; a tela "Conferir importados" mostra cada um com botão para corrigir a categoria na hora e "marcar tudo como visto".
+- **Evolução do patrimônio**: gráfico mensal na aba Investir (começa com jun/jul/out de 2026 e atualiza sozinho todo mês com as cotações).
+- **Simulador do futuro**: aporte mensal + rendimento com duas curvas, o valor nominal e o poder de compra em dinheiro de hoje (descontando a inflação).
+- **Contas previstas com lembretes**: cadastre contas fixas (nome, dia, valor) e receba uma notificação às 9h do dia de cada vencimento (Android e Linux); os próximos vencimentos também aparecem no Resumo.
+- **Preço teto (Bazin)**: dividendos dos últimos 12 meses de cada ativo divididos pela taxa desejada (padrão 6%), com indicador verde para zona de compra.
+- Preparação do Android para as notificações (permissões e reagendamento após reiniciar).
+
 ## v1.6.0 (07/10/2026)
 - Metas de orçamento por categoria: defina um limite mensal de gasto para cada categoria (ex: R$ 500 de Alimentação) e acompanhe no Resumo uma barra de progresso (verde, laranja chegando perto e vermelha quando passa), com o gasto, o que resta e quanto passou.
 - Tela nova "Metas de orçamento" (botão no Resumo): definir, mudar e remover limites com facilidade.

@@ -63,4 +63,51 @@ class QuotesService {
     client.close(force: true);
     return resultado;
   }
+
+  /// Soma dos dividendos pagos por cota nos últimos 12 meses (Yahoo).
+  /// Retorna ticker → soma em reais (ex.: 1.1278 = R$ 1,1278 por cota).
+  /// Falhas individuais são ignoradas.
+  static Future<Map<String, double>> dividendos12m(
+      List<String> tickers) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+    final resultado = <String, double>{};
+    final corte = DateTime.now()
+            .subtract(const Duration(days: 365))
+            .millisecondsSinceEpoch ~/
+        1000;
+
+    Future<void> buscarUm(String ticker) async {
+      try {
+        final url = Uri.parse('https://query1.finance.yahoo.com/v8/finance/'
+            'chart/$ticker.SA?range=2y&interval=1mo&events=div');
+        final req =
+            await client.getUrl(url).timeout(const Duration(seconds: 8));
+        req.headers.set('User-Agent', _userAgent);
+        final resp = await req.close().timeout(const Duration(seconds: 8));
+        if (resp.statusCode != 200) return;
+        final corpo = await resp.transform(utf8.decoder).join();
+        final json = jsonDecode(corpo) as Map<String, dynamic>;
+        final chart = json['chart'] as Map<String, dynamic>?;
+        final lista = chart?['result'] as List<dynamic>?;
+        if (lista == null || lista.isEmpty) return;
+        final eventos = ((lista.first as Map<String, dynamic>)['events']
+            as Map<String, dynamic>?)?['dividends'] as Map<String, dynamic>?;
+        if (eventos == null) return;
+        var soma = 0.0;
+        for (final e in eventos.values) {
+          final mapa = e as Map<String, dynamic>;
+          final ts = (mapa['date'] as num?)?.toInt() ?? 0;
+          final valor = (mapa['amount'] as num?)?.toDouble() ?? 0;
+          if (ts >= corte && valor > 0) soma += valor;
+        }
+        if (soma > 0) resultado[ticker] = soma;
+      } catch (_) {
+        // sem internet / sem dividendos: segue sem este ticker.
+      }
+    }
+
+    await Future.wait(tickers.map(buscarUm));
+    client.close(force: true);
+    return resultado;
+  }
 }

@@ -73,6 +73,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   DateTime? _cotasEm;
   bool _buscandoCotas = false;
   Map<String, int> _historico = {}; // mês YYYY-MM → patrimônio (centavos)
+  Map<String, int> _somas12m = {}; // ticker → dividendos 12m (centavos/cota)
+  double _taxaBazin = 6; // % ao ano desejada (clássico do Bazin: 6%)
+  bool _buscandoProventos = false;
 
   @override
   void initState() {
@@ -91,6 +94,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         int.tryParse(await Db.i.getSetting('reserve_goal_cents') ?? '') ?? 0;
     final historico = decodeMapaCents(
         await Db.i.getSetting('patrimonio_historico_json'));
+    final somas12m =
+        decodeMapaCents(await Db.i.getSetting('div_soma12m_json'));
+    final taxaBazin =
+        double.tryParse(await Db.i.getSetting('bazin_taxa_pct') ?? '') ?? 6;
     if (!mounted) return;
     setState(() {
       _posicoes = posicoes;
@@ -99,6 +106,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       _reservaCents = reserva;
       _metaReservaCents = meta;
       _historico = historico;
+      _somas12m = somas12m;
+      _taxaBazin = taxaBazin;
       _carregando = false;
     });
     _buscarCotas();
@@ -476,6 +485,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
           const SizedBox(height: 20),
 
+          // ─── Preço teto (Bazin) ───
+          _secaoPrecoTeto(context),
+          const SizedBox(height: 20),
+
           // ─── Proventos recentes ───
           if (_proventos.isNotEmpty) ...[
             Text('Proventos recentes',
@@ -638,6 +651,176 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Busca os dividendos dos últimos 12 meses de cada ativo (Yahoo) e
+  /// guarda o cache para calcular os preços teto.
+  Future<void> _calcularProventos() async {
+    if (_buscandoProventos || _posicoes.isEmpty) return;
+    setState(() => _buscandoProventos = true);
+    final somas = await QuotesService.dividendos12m(
+        _posicoes.map((p) => p.ticker).toList());
+    final mapa = <String, int>{
+      for (final entrada in somas.entries)
+        entrada.key: (entrada.value * 100).round(),
+    };
+    if (mapa.isNotEmpty) {
+      await Db.i.setSetting('div_soma12m_json', encodeMapaCents(mapa));
+    }
+    if (!mounted) return;
+    setState(() {
+      if (mapa.isNotEmpty) _somas12m = mapa;
+      _buscandoProventos = false;
+    });
+  }
+
+  Future<void> _editarTaxaBazin() async {
+    final campo = TextEditingController(
+        text: _taxaBazin.toStringAsFixed(1).replaceAll('.', ','));
+    final nova = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Taxa desejada (Bazin)'),
+        content: TextField(
+          controller: campo,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Rendimento mínimo desejado',
+            suffixText: '% ao ano',
+            helperText: 'O clássico do Bazin é 6%.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final v = double.tryParse(campo.text.replaceAll(',', '.'));
+              if (v == null || v <= 0 || v > 30) return;
+              Navigator.of(ctx).pop(v);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (nova == null || !mounted) return;
+    await Db.i.setSetting('bazin_taxa_pct', nova.toString());
+    setState(() => _taxaBazin = nova);
+  }
+
+  /// Preço teto (Bazin): dividendos 12m por cota dividido pela taxa desejada.
+  Widget _secaoPrecoTeto(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final temDados = _somas12m.isNotEmpty;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.calculate_outlined, size: 18, color: cs.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Preço teto (Bazin ${_taxaBazin.toStringAsFixed(0)}%)',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                if (_buscandoProventos)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  IconButton(
+                    onPressed: _calcularProventos,
+                    tooltip: 'Calcular/atualizar dividendos (12 meses)',
+                    icon: const Icon(Icons.refresh, size: 20),
+                  ),
+                IconButton(
+                  onPressed: _editarTaxaBazin,
+                  tooltip: 'Mudar a taxa desejada',
+                  icon: const Icon(Icons.tune, size: 20),
+                ),
+              ],
+            ),
+            if (!temDados)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, right: 8),
+                child: Text(
+                  'O preço máximo de compra de cada ativo: dividendos dos '
+                  'últimos 12 meses divididos pela taxa desejada '
+                  '(${_taxaBazin.toStringAsFixed(0)}%). Toque em ↻ para calcular.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              )
+            else ...[
+              const SizedBox(height: 4),
+              for (final p in _posicoes)
+                if (_somas12m[p.ticker] != null) _linhaPrecoTeto(context, p),
+              const SizedBox(height: 4),
+              Text(
+                'Abaixo do teto em verde: na zona de compra pelo método.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _linhaPrecoTeto(BuildContext context, Investment p) {
+    final soma = _somas12m[p.ticker]!;
+    final tetoCents = (soma / (_taxaBazin / 100)).round();
+    final cota = _cotas[p.ticker];
+    final atualCents = cota == null ? null : (cota.price * 100).round();
+    final abaixo = atualCents != null && atualCents <= tetoCents;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, right: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(p.ticker,
+                style: const TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w600)),
+          ),
+          Text('teto ${formatCents(tetoCents)}',
+              style: const TextStyle(fontSize: 12.5)),
+          const SizedBox(width: 10),
+          if (atualCents == null)
+            Text('sem cotação', style: Theme.of(context).textTheme.bodySmall)
+          else ...[
+            Text(
+              'agora ${formatCents(atualCents)}',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color:
+                    abaixo ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              abaixo ? Icons.check_circle : Icons.error_outline,
+              size: 14,
+              color: abaixo ? Colors.green.shade700 : Colors.red.shade700,
+            ),
+          ],
+        ],
       ),
     );
   }
