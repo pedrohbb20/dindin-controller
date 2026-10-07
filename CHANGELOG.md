@@ -10,6 +10,8 @@ Aplicativo **Dindin Controller**: clone pessoal do Money Tracker (Flutter), para
 - **Simulador do futuro**: aporte mensal + rendimento com duas curvas, o valor nominal e o poder de compra em dinheiro de hoje (descontando a inflação).
 - **Contas previstas com lembretes**: cadastre contas fixas (nome, dia, valor) e receba uma notificação às 9h do dia de cada vencimento (Android e Linux); os próximos vencimentos também aparecem no Resumo.
 - **Preço teto (Bazin)**: dividendos dos últimos 12 meses de cada ativo divididos pela taxa desejada (padrão 6%), com indicador verde para zona de compra.
+- **Possíveis transferências entre contas**: quando uma saída e uma entrada de mesmo valor (até 2 dias de diferença) aparecem em contas diferentes, o Resumo avisa e a tela "Possíveis transferências" deixa casar os dois lados numa única transferência (ou dizer "não é transferência"); casar mantém os saldos das contas certos e tira a contagem dobrada.
+- **Projeção de caixa no Resumo**: dentro do cartão de contas previstas, o saldo disponível de hoje (carteira e contas) menos as contas a vencer até o fim do mês, com a sobra projetada em verde ou vermelho.
 - Preparação do Android para as notificações (permissões e reagendamento após reiniciar).
 
 ## v1.6.0 (07/10/2026)

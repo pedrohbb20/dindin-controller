@@ -317,6 +317,45 @@ class Db {
     return rows.isEmpty ? null : Transaction.fromMap(rows.first);
   }
 
+  /// Transações recentes (com id e conta, já sem excluídas) para procurar
+  /// pares de transferência entre contas.
+  Future<List<Transaction>> transacoesRecentes({int dias = 90}) async {
+    final db = await database;
+    final limite = DateTime.now().subtract(Duration(days: dias));
+    final desde = '${limite.year.toString().padLeft(4, '0')}-'
+        '${limite.month.toString().padLeft(2, '0')}-'
+        '${limite.day.toString().padLeft(2, '0')}';
+    final rows = await db.query('transactions',
+        where: "deleted = 0 AND type IN ('income', 'expense') AND date >= ?",
+        whereArgs: [desde],
+        orderBy: 'date DESC',
+        limit: 3000);
+    return rows.map(Transaction.fromMap).toList();
+  }
+
+  /// Casa um par como uma única transferência: a saída vira transferência
+  /// para a conta da entrada, e a entrada (redundante) é marcada como
+  /// excluída. Os saldos das contas continuam certos (saída negativa na
+  /// origem, entrada positiva no destino via to_account_id).
+  Future<void> casarParComoTransferencia(
+      int idSaida, int idEntrada, int contaDestinoId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+          'transactions',
+          {
+            'type': 'transfer',
+            'to_account_id': contaDestinoId,
+            'updated_at': agoraIso(),
+          },
+          where: 'id = ?',
+          whereArgs: [idSaida]);
+      await txn.update(
+          'transactions', {'deleted': 1, 'updated_at': agoraIso()},
+          where: 'id = ?', whereArgs: [idEntrada]);
+    });
+  }
+
   /// Edita uma transação existente. O carimbo `updated_at` é renovado para a
   /// alteração viajar até os outros aparelhos na sincronização.
   Future<void> updateTransaction(Transaction t) async {

@@ -2,6 +2,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dindin_controller/data/models.dart';
+import 'package:dindin_controller/data/transferencias.dart';
 
 void main() {
   group('parseAmountToCents', () {
@@ -89,6 +90,76 @@ void main() {
       expect(decodeMetasJson('{"a": 1500, "b": "x", "c": -3, "d": 0}'),
           {'a': 1500});
       expect(decodeMetasJson('{"a": 15.0}'), {'a': 15});
+    });
+  });
+
+  group('pares de transferência entre contas', () {
+    Transaction tx(int id, String type, int cents, String date, int acc) =>
+        Transaction(
+            id: id,
+            type: type,
+            amountCents: cents,
+            date: date,
+            accountId: acc);
+
+    test('casa saída e entrada de mesmo valor em contas diferentes', () {
+      final pares = encontrarParesTransferencia([
+        tx(1, 'expense', 9300, '2026-10-06', 5),
+        tx(2, 'income', 9300, '2026-10-06', 3),
+      ]);
+      expect(pares.length, 1);
+      expect(pares.first.saida.id, 1);
+      expect(pares.first.entrada.id, 2);
+      expect(pares.first.chave, '1:2');
+    });
+
+    test('não casa mesma conta nem valores diferentes', () {
+      final pares = encontrarParesTransferencia([
+        tx(1, 'expense', 9300, '2026-10-06', 5),
+        tx(2, 'income', 9300, '2026-10-06', 5),
+        tx(3, 'income', 5000, '2026-10-05', 3),
+      ]);
+      expect(pares, isEmpty);
+    });
+
+    test('respeita a janela de dias (padrão: 2)', () {
+      expect(
+          encontrarParesTransferencia([
+            tx(1, 'expense', 9300, '2026-10-06', 5),
+            tx(2, 'income', 9300, '2026-10-03', 3),
+          ]),
+          isEmpty);
+      expect(
+          encontrarParesTransferencia([
+            tx(1, 'expense', 9300, '2026-10-06', 5),
+            tx(2, 'income', 9300, '2026-10-04', 3),
+          ]).length,
+          1);
+    });
+
+    test('ignora pares marcados como "não é transferência"', () {
+      expect(
+          encontrarParesTransferencia([
+            tx(1, 'expense', 9300, '2026-10-06', 5),
+            tx(2, 'income', 9300, '2026-10-06', 3),
+          ], ignoradas: {'1:2'}),
+          isEmpty);
+    });
+
+    test('cada lançamento casa no máximo uma vez', () {
+      final pares = encontrarParesTransferencia([
+        tx(1, 'expense', 9300, '2026-10-06', 5),
+        tx(2, 'expense', 9300, '2026-10-04', 6),
+        tx(3, 'income', 9300, '2026-10-05', 3),
+      ]);
+      expect(pares.length, 1);
+    });
+
+    test('lista de ignorados tolerante a nulo, lixo e ida e volta', () {
+      expect(decodeParesIgnorados(null), isEmpty);
+      expect(decodeParesIgnorados('nada'), isEmpty);
+      expect(decodeParesIgnorados('["1:2","3:4"]'), {'1:2', '3:4'});
+      expect(encodeParesIgnorados({'1:2'}), '["1:2"]');
     });
   });
 }

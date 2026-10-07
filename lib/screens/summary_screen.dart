@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../data/models.dart';
 import '../data/tema.dart';
+import '../data/transferencias.dart';
 import 'budgets_screen.dart';
 import 'contas_previstas_screen.dart';
 import 'review_screen.dart';
+import 'transferencias_screen.dart';
 
 /// Resumo do mês: receitas, despesas, saldo e o gráfico por categoria
 /// (despesas OU receitas, alternável; rosca interativa: tocar destaca a fatia).
@@ -44,6 +46,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
   Map<String, int> _metas = {}; // sync_id da categoria → limite (centavos)
   List<Category> _catDespesas = []; // categorias de despesa (nome e meta)
   int _pendentes = 0; // lançamentos importados aguardando conferência
+  int _pares = 0; // possíveis transferências entre contas
+  int _saldoDisponivel = 0; // carteira + contas (sem cartões e reserva)
   List<ContaPrevista> _contasPrevistas = []; // contas fixas cadastradas
 
   @override
@@ -63,6 +67,15 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final pendentes = await Db.i.importadosPendentes();
     final contasPrevistas = decodeContasPrevistas(
         await Db.i.getSetting('contas_previstas_json'));
+    final ignoradasTx = decodeParesIgnorados(
+        await Db.i.getSetting('transferencias_ignoradas_json'));
+    final candidatas = await Db.i.transacoesRecentes();
+    final pares =
+        encontrarParesTransferencia(candidatas, ignoradas: ignoradasTx);
+    final saldos = await Db.i.accountBalances();
+    final saldoDisponivel = saldos
+        .where((s) => s.type == 'cash' || s.type == 'bank')
+        .fold(0, (soma, s) => soma + s.balanceCents);
     if (!mounted) return;
     setState(() {
       _receitas = totais['income'] ?? 0;
@@ -72,6 +85,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _metas = metas;
       _catDespesas = catDespesas;
       _pendentes = pendentes;
+      _pares = pares.length;
+      _saldoDisponivel = saldoDisponivel;
       _contasPrevistas = contasPrevistas;
       _carregando = false;
     });
@@ -179,6 +194,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
               else
                 for (final (conta, data) in proximos.take(5))
                   _linhaVencimento(tema, conta, data, hojeZero),
+              const Divider(height: 24),
+              _linhaProjecao(tema),
             ],
           ),
         ),
@@ -220,6 +237,74 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// Projeção de caixa simples: saldo disponível hoje (carteira e contas)
+  /// menos as contas previstas que ainda vencem neste mês.
+  Widget _linhaProjecao(ThemeData tema) {
+    final agora = DateTime.now();
+    final ultimoDia = DateTime(agora.year, agora.month + 1, 0);
+    var aVencer = 0;
+    for (final c in _contasPrevistas) {
+      if (c.valorCents <= 0) continue;
+      final data = c.proximaData();
+      if (!data.isAfter(ultimoDia)) aVencer += c.valorCents;
+    }
+    final sobra = _saldoDisponivel - aVencer;
+    final fimMes = '${ultimoDia.day.toString().padLeft(2, '0')}/'
+        '${ultimoDia.month.toString().padLeft(2, '0')}';
+    final corSobra = sobra >= 0 ? Colors.green.shade700 : Colors.red.shade700;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.account_balance_wallet_outlined,
+                size: 17, color: tema.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('Saldo disponível hoje (carteira e contas)',
+                  style: tema.textTheme.bodySmall),
+            ),
+            Text(formatCents(_saldoDisponivel),
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(Icons.event_busy_outlined,
+                size: 17, color: tema.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('Contas a vencer até $fimMes',
+                  style: tema.textTheme.bodySmall),
+            ),
+            Text('- ${formatCents(aVencer)}',
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.trending_flat, size: 17, color: corSobra),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('Sobra projetada do mês',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: corSobra)),
+            ),
+            Text(formatCents(sobra),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: corSobra)),
+          ],
+        ),
+      ],
+    );
+  }
+
   Future<void> _abrirRevisao() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ReviewScreen()),
@@ -241,6 +326,35 @@ class _SummaryScreenState extends State<SummaryScreen> {
           subtitle: const Text('Vieram dos bancos automaticamente'),
           trailing: const Icon(Icons.chevron_right),
           onTap: _abrirRevisao,
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  Future<void> _abrirTransferencias() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TransferenciasScreen()),
+    );
+    if (mounted) _carregar();
+  }
+
+  /// Cartão quando existem pares saída+entrada de mesmo valor entre contas
+  /// diferentes (possíveis transferências entre os seus bancos).
+  List<Widget> _secaoTransferencias(BuildContext context) {
+    if (_pares == 0) return [];
+    return [
+      Card(
+        child: ListTile(
+          leading: Icon(Icons.swap_horiz,
+              color: Theme.of(context).colorScheme.primary),
+          title: Text(_pares == 1
+              ? '1 possível transferência entre contas'
+              : '$_pares possíveis transferências entre contas'),
+          subtitle:
+              const Text('Mesmo valor saindo de uma conta e entrando em outra'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _abrirTransferencias,
         ),
       ),
       const SizedBox(height: 16),
@@ -467,6 +581,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
           // ─── Importados aguardando conferência ───
           ..._secaoRevisao(context),
+
+          // ─── Possíveis transferências entre contas ───
+          ..._secaoTransferencias(context),
 
           // ─── Metas de orçamento (se houver alguma definida) ───
           ..._secaoMetas(context),
