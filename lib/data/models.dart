@@ -239,3 +239,92 @@ class CategoryTotal {
     required this.totalCents,
   });
 }
+
+/// ─── Investimentos ─────────────────────────────────────────────────────
+
+/// Posição em um ativo (FII, ação ou ETF).
+class Investment {
+  final int? id;
+  final String ticker;
+  final String kind; // 'fii' | 'acao' | 'etf'
+  final int quantity;
+  final int avgPriceCents; // preço médio (incluindo taxas) em centavos
+  final String? note;
+
+  const Investment({
+    this.id,
+    required this.ticker,
+    required this.kind,
+    required this.quantity,
+    required this.avgPriceCents,
+    this.note,
+  });
+
+  int get investedCents => avgPriceCents * quantity;
+
+  Map<String, Object?> toMap() => {
+        if (id != null) 'id': id,
+        'ticker': ticker,
+        'kind': kind,
+        'quantity': quantity,
+        'avg_price_cents': avgPriceCents,
+        'note': note,
+      };
+
+  static Investment fromMap(Map<String, Object?> m) => Investment(
+        id: m['id'] as int?,
+        ticker: m['ticker'] as String,
+        kind: m['kind'] as String,
+        quantity: (m['quantity'] as int?) ?? 0,
+        avgPriceCents: (m['avg_price_cents'] as int?) ?? 0,
+        note: m['note'] as String?,
+      );
+
+  String get kindLabel => switch (kind) {
+        'fii' => 'FII',
+        'acao' => 'Ação',
+        'etf' => 'ETF',
+        _ => 'Outro',
+      };
+}
+
+/// Provento recebido (dividendo/JCP de FII, ação ou carteira inteira).
+class Dividend {
+  final int? id;
+  final String date; // YYYY-MM-DD
+  final String? ticker; // null = vários ativos / carteira
+  final int amountCents;
+  final String? note;
+
+  const Dividend({
+    this.id,
+    required this.date,
+    this.ticker,
+    required this.amountCents,
+    this.note,
+  });
+
+  Map<String, Object?> toMap() => {
+        if (id != null) 'id': id,
+        'date': date,
+        'ticker': ticker,
+        'amount_cents': amountCents,
+        'note': note,
+      };
+
+  static Dividend fromMap(Map<String, Object?> m) => Dividend(
+        id: m['id'] as int?,
+        date: m['date'] as String,
+        ticker: m['ticker'] as String?,
+        amountCents: (m['amount_cents'] as int?) ?? 0,
+        note: m['note'] as String?,
+      );
+}
+
+/// Total de proventos de um mês (para o gráfico mensal).
+class MonthTotal {
+  final String month; // YYYY-MM
+  final int totalCents;
+
+  const MonthTotal({required this.month, required this.totalCents});
+}

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Necessária para a sincronização (Supabase) e as cotações (Yahoo Finance) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="dindin_controller"
         android:name="${applicationName}"

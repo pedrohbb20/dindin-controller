@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../data/models.dart';
+import 'gerenciar_categorias_dialog.dart';
+import 'nova_categoria_dialog.dart';
 
 /// Formulário de nova transação (despesa, receita ou transferência).
 class AddTransactionSheet extends StatefulWidget {
@@ -54,6 +56,38 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
   List<Category> get _catsDoTipo =>
       _categorias.where((c) => c.type == _tipo).toList();
+
+  /// Abre o diálogo de nova categoria; se criar, já seleciona na transação.
+  Future<void> _novaCategoria() async {
+    final criada = await showDialog<Category>(
+      context: context,
+      builder: (_) => NovaCategoriaDialog(tipoInicial: _tipo),
+    );
+    if (criada == null) return;
+    setState(() {
+      _categorias = [..._categorias, criada];
+      _categoriaId = criada.id;
+    });
+  }
+
+  /// Abre o diálogo de gerenciar; se removeu alguma, recarrega a lista e
+  /// limpa a seleção caso a categoria escolhida tenha sido removida.
+  Future<void> _gerenciarCategorias() async {
+    final mudou = await showDialog<bool>(
+      context: context,
+      builder: (_) => GerenciarCategoriasDialog(tipoInicial: _tipo),
+    );
+    if (mudou != true || !mounted) return;
+    final cats = await Db.i.categories();
+    if (!mounted) return;
+    setState(() {
+      _categorias = cats;
+      final ids = cats.map((c) => c.id).toSet();
+      if (_categoriaId != null && !ids.contains(_categoriaId)) {
+        _categoriaId = null;
+      }
+    });
+  }
 
   Future<void> _escolherData() async {
     final d = await showDatePicker(
@@ -191,6 +225,22 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                               DropdownMenuItem(value: c.id, child: Text(c.name)))
                           .toList(),
                       onChanged: (v) => setState(() => _categoriaId = v),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _gerenciarCategorias,
+                          icon: const Icon(Icons.tune, size: 18),
+                          label: const Text('Gerenciar'),
+                        ),
+                        const SizedBox(width: 4),
+                        TextButton.icon(
+                          onPressed: _novaCategoria,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Nova categoria'),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 12),
