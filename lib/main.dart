@@ -41,15 +41,15 @@ class DindinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: Tema.notifier,
-      builder: (context, modo, _) {
+    return ListenableBuilder(
+      listenable: Tema.tudo,
+      builder: (context, _) {
         return MaterialApp(
           title: 'Dindin Controller',
           debugShowCheckedModeBanner: false,
           theme: Tema.claro(),
           darkTheme: Tema.escuro(),
-          themeMode: modo,
+          themeMode: Tema.notifier.value,
           locale: const Locale('pt', 'BR'),
           supportedLocales: const [Locale('pt', 'BR')],
           localizationsDelegates: const [

@@ -327,8 +327,72 @@ class Db {
     await db.update('transactions', mapa, where: 'id = ?', whereArgs: [t.id]);
   }
 
-  Future<List<TxView>> transactions({String? month, int limit = 300}) async {
+  /// Transações (com filtros opcionais) para a aba Transações.
+  /// - month: prefixo YYYY-MM (modo "mês selecionado")
+  /// - de/ate: intervalo de datas ISO (modo personalizado)
+  /// - tipo: 'income' | 'expense' | 'transfer'
+  /// - categorias/contas: listas de ids locais
+  /// - texto: busca em título/observação
+  /// - minCents/maxCents: faixa de valor
+  Future<List<TxView>> transactions({
+    String? month,
+    String? de,
+    String? ate,
+    String? tipo,
+    List<int>? categorias,
+    List<int>? contas,
+    String? texto,
+    int? minCents,
+    int? maxCents,
+    int limit = 1000,
+  }) async {
     final db = await database;
+    final condicoes = <String>['t.deleted = 0'];
+    final argumentos = <Object?>[];
+    if (month != null) {
+      condicoes.add('t.date LIKE ?');
+      argumentos.add('$month%');
+    }
+    if (de != null && de.isNotEmpty) {
+      condicoes.add('t.date >= ?');
+      argumentos.add(de);
+    }
+    if (ate != null && ate.isNotEmpty) {
+      condicoes.add('t.date <= ?');
+      argumentos.add(ate);
+    }
+    if (tipo != null) {
+      condicoes.add('t.type = ?');
+      argumentos.add(tipo);
+    }
+    if (categorias != null && categorias.isNotEmpty) {
+      final marcas = List.filled(categorias.length, '?').join(',');
+      condicoes.add('t.category_id IN ($marcas)');
+      argumentos.addAll(categorias);
+    }
+    if (contas != null && contas.isNotEmpty) {
+      final marcas = List.filled(contas.length, '?').join(',');
+      condicoes.add(
+          '(t.account_id IN ($marcas) OR t.to_account_id IN ($marcas))');
+      argumentos.addAll(contas);
+      argumentos.addAll(contas);
+    }
+    final busca = texto?.trim().toLowerCase();
+    if (busca != null && busca.isNotEmpty) {
+      condicoes.add(
+          "(LOWER(COALESCE(t.title, '')) LIKE ? OR LOWER(COALESCE(t.note, '')) LIKE ?)");
+      argumentos.add('%$busca%');
+      argumentos.add('%$busca%');
+    }
+    if (minCents != null) {
+      condicoes.add('t.amount_cents >= ?');
+      argumentos.add(minCents);
+    }
+    if (maxCents != null) {
+      condicoes.add('t.amount_cents <= ?');
+      argumentos.add(maxCents);
+    }
+    argumentos.add(limit);
     final rows = await db.rawQuery('''
       SELECT t.id, t.type, t.amount_cents, t.date, t.title, t.note,
              a.name AS account_name,
@@ -338,10 +402,10 @@ class Db {
       JOIN accounts a ON a.id = t.account_id
       LEFT JOIN accounts a2 ON a2.id = t.to_account_id
       LEFT JOIN categories c ON c.id = t.category_id
-      WHERE t.deleted = 0 ${month != null ? 'AND t.date LIKE ?' : ''}
+      WHERE ${condicoes.join(' AND ')}
       ORDER BY t.date DESC, t.id DESC
       LIMIT ?
-    ''', [if (month != null) '$month%', limit]);
+    ''', argumentos);
     return rows.map(TxView.fromMap).toList();
   }
 

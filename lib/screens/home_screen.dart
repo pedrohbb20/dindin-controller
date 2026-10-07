@@ -5,6 +5,7 @@ import '../data/tema.dart';
 import 'add_transaction_sheet.dart';
 import 'accounts_screen.dart';
 import 'investments_screen.dart';
+import 'settings_screen.dart';
 import 'summary_screen.dart';
 import 'sync_screen.dart';
 import 'transactions_screen.dart';
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'Transações',
     'Contas',
     'Investimentos',
+    'Ajustes',
   ];
 
   static const List<({IconData icone, IconData iconeSel, String rotulo})>
@@ -50,6 +52,11 @@ class _HomeScreenState extends State<HomeScreen> {
       rotulo: 'Contas'
     ),
     (icone: Icons.savings_outlined, iconeSel: Icons.savings, rotulo: 'Investir'),
+    (
+      icone: Icons.settings_outlined,
+      iconeSel: Icons.settings,
+      rotulo: 'Ajustes'
+    ),
   ];
 
   @override
@@ -69,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
             AccountsScreen(
                 key: ValueKey('contas$_versao'), onChanged: _recarregar),
             InvestmentsScreen(key: ValueKey('inv$_versao')),
+            SettingsScreen(key: ValueKey('ajustes$_versao')),
           ],
         );
 
@@ -142,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                   ],
                 ),
-          floatingActionButton: _aba == 3
+          floatingActionButton: _aba >= 3
               ? null
               : FloatingActionButton.extended(
                   onPressed: _abrirNovaTransacao,
