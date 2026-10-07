@@ -45,12 +45,16 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "dindin_controller");
+    gtk_header_bar_set_title(header_bar, "Dindin Controller");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "dindin_controller");
+    gtk_window_set_title(window, "Dindin Controller");
   }
+
+  // Ícone da janela/barra de tarefas (instalado no tema de ícones do usuário
+  // como "dindin_controller"; ver ~/.local/share/icons/hicolor).
+  gtk_window_set_icon_name(window, "dindin_controller");
 
   gtk_window_set_default_size(window, 1280, 720);
 

@@ -2,7 +2,7 @@
     <!-- Necessária para a sincronização (Supabase) e as cotações (Yahoo Finance) -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="dindin_controller"
+        android:label="Dindin Controller"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
