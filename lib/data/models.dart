@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:intl/intl.dart';
 
 /// ─── Formatação (pt-BR) ───────────────────────────────────────────────
@@ -32,6 +34,26 @@ int? parseAmountToCents(String input) {
 /// Formata centavos para o campo de digitação (sem símbolo): 2590 → "25,90".
 String centsParaInput(int cents) =>
     (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
+
+/// ─── Metas de orçamento (settings: budgets_json) ───────────────────────
+/// Serializa o mapa de metas (sync_id da categoria → limite em centavos).
+String encodeMetasJson(Map<String, int> metas) => jsonEncode(metas);
+
+/// Lê o JSON das metas; tolerante a nulo, vazio, lixo ou valores errados.
+Map<String, int> decodeMetasJson(String? json) {
+  if (json == null || json.trim().isEmpty) return {};
+  try {
+    final bruto = jsonDecode(json);
+    if (bruto is! Map) return {};
+    final metas = <String, int>{};
+    bruto.forEach((chave, valor) {
+      if (valor is num && valor > 0) metas[chave.toString()] = valor.toInt();
+    });
+    return metas;
+  } catch (_) {
+    return {};
+  }
+}
 
 /// ─── Modelos ───────────────────────────────────────────────────────────
 class Account {
@@ -112,6 +134,7 @@ class AccountBalance {
 
 class Category {
   final int? id;
+  final String? syncId; // identidade entre aparelhos (as metas apontam p/ ela)
   final String name;
   final String type; // income | expense
   final String icon; // nome do ícone (ver icons.dart)
@@ -120,6 +143,7 @@ class Category {
 
   const Category({
     this.id,
+    this.syncId,
     required this.name,
     required this.type,
     this.icon = 'more_horiz',
@@ -138,6 +162,7 @@ class Category {
 
   static Category fromMap(Map<String, Object?> m) => Category(
         id: m['id'] as int?,
+        syncId: m['sync_id'] as String?,
         name: m['name'] as String,
         type: m['type'] as String,
         icon: (m['icon'] as String?) ?? 'more_horiz',

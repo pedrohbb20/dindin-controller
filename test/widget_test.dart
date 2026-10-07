@@ -71,4 +71,24 @@ void main() {
       expect(lido.title, 'Gabryel');
     });
   });
+
+  group('metas de orçamento (JSON em settings)', () {
+    test('ida e volta preserva os limites', () {
+      final metas = {'sync-a': 50000, 'sync-b': 25000};
+      expect(decodeMetasJson(encodeMetasJson(metas)), metas);
+    });
+
+    test('tolerante a nulo, vazio e lixo', () {
+      expect(decodeMetasJson(null), isEmpty);
+      expect(decodeMetasJson(''), isEmpty);
+      expect(decodeMetasJson('{quebrado'), isEmpty);
+      expect(decodeMetasJson('[1,2,3]'), isEmpty);
+    });
+
+    test('ignora valores inválidos e converte números', () {
+      expect(decodeMetasJson('{"a": 1500, "b": "x", "c": -3, "d": 0}'),
+          {'a': 1500});
+      expect(decodeMetasJson('{"a": 15.0}'), {'a': 15});
+    });
+  });
 }

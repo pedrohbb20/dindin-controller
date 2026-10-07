@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../data/models.dart';
 import '../data/tema.dart';
+import 'budgets_screen.dart';
 
 /// Resumo do mês: receitas, despesas, saldo e o gráfico por categoria
 /// (despesas OU receitas, alternável; rosca interativa: tocar destaca a fatia).
@@ -38,6 +39,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
   bool _mostrarReceitas = false; // alterna o gráfico despesas/receitas
   int _fatiaTocada = -1; // -1 = nenhuma fatia destacada
 
+  Map<String, int> _metas = {}; // sync_id da categoria → limite (centavos)
+  List<Category> _catDespesas = []; // categorias de despesa (nome e meta)
+
   @override
   void initState() {
     super.initState();
@@ -50,12 +54,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final totais = await Db.i.monthTotals(prefixo);
     final desp = await Db.i.monthByCategory(prefixo, 'expense');
     final rec = await Db.i.monthByCategory(prefixo, 'income');
+    final metas = decodeMetasJson(await Db.i.getSetting('budgets_json'));
+    final catDespesas = await Db.i.categories(type: 'expense');
     if (!mounted) return;
     setState(() {
       _receitas = totais['income'] ?? 0;
       _despesas = totais['expense'] ?? 0;
       _despCats = desp;
       _recCats = rec;
+      _metas = metas;
+      _catDespesas = catDespesas;
       _carregando = false;
     });
   }
@@ -93,6 +101,132 @@ class _SummaryScreenState extends State<SummaryScreen> {
       ));
     }
     return lista;
+  }
+
+  Future<void> _abrirMetas() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BudgetsScreen()),
+    );
+    if (mounted) _carregar();
+  }
+
+  /// Bloco das metas: botão para criar a primeira ou o cartão com as barras
+  /// de progresso (da categoria mais apertada para a mais folgada).
+  List<Widget> _secaoMetas(BuildContext context) {
+    if (_metas.isEmpty) {
+      return [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: _abrirMetas,
+            icon: const Icon(Icons.track_changes, size: 18),
+            label: const Text('Definir metas de orçamento'),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ];
+    }
+    return [
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.track_changes,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Metas de orçamento',
+                        style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                  TextButton.icon(
+                    onPressed: _abrirMetas,
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Editar'),
+                  ),
+                ],
+              ),
+              ..._linhasMetas(),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 20),
+    ];
+  }
+
+  /// Monta as linhas (categoria, gasto no mês, limite), priorizando as que
+  /// estão mais perto (ou acima) do limite.
+  List<Widget> _linhasMetas() {
+    final porSync = <String, Category>{
+      for (final c in _catDespesas)
+        if (c.syncId != null) c.syncId!: c,
+    };
+    final itens = <(Category, int, int)>[]; // (categoria, gasto, limite)
+    for (final entrada in _metas.entries) {
+      final cat = porSync[entrada.key];
+      if (cat == null) continue; // categoria removida: a meta fica guardada
+      var gasto = 0;
+      for (final c in _despCats) {
+        if (c.name == cat.name) gasto += c.totalCents;
+      }
+      itens.add((cat, gasto, entrada.value));
+    }
+    itens.sort((a, b) => (b.$2 / b.$3).compareTo(a.$2 / a.$3));
+    return [for (final it in itens) _linhaMeta(it.$1, it.$2, it.$3)];
+  }
+
+  Widget _linhaMeta(Category cat, int gasto, int limite) {
+    final razao = gasto / limite;
+    final cor = razao >= 1
+        ? Colors.red.shade700
+        : razao >= 0.75
+            ? Colors.orange.shade800
+            : Colors.green.shade600;
+    final sobra = limite - gasto;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, right: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(cat.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13.5)),
+              ),
+              Text(
+                '${formatCents(gasto)} de ${formatCents(limite)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: razao > 1 ? 1.0 : razao,
+              minHeight: 7,
+              color: cor,
+              backgroundColor: cor.withValues(alpha: 0.15),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            sobra >= 0
+                ? 'Restam ${formatCents(sobra)}'
+                : 'Passou em ${formatCents(-sobra)}',
+            style: TextStyle(fontSize: 11.5, color: cor),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -185,7 +319,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // ─── Metas de orçamento (se houver alguma definida) ───
+          ..._secaoMetas(context),
 
           // ─── Gráfico por categoria (despesas / receitas) ───
           Row(

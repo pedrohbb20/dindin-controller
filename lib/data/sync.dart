@@ -35,7 +35,11 @@ class Sync {
   Sync._();
 
   static const _lote = 300;
-  static const _chavesSync = ['reserve_cents', 'reserve_goal_cents'];
+  static const _chavesSync = [
+    'reserve_cents',
+    'reserve_goal_cents',
+    'budgets_json',
+  ];
 
   /// Cliente Supabase (só usar depois de checar [_iniciado]).
   static SupabaseClient get _cli => Supabase.instance.client;
@@ -412,7 +416,7 @@ class Sync {
     };
   }
 
-  /// Sincroniza as configurações financeiras (reserva de emergência).
+  /// Sincroniza as configurações financeiras (reserva e metas de orçamento).
   static Future<(int, int)> _sincronizarSettings() async {
     final db = Db.i;
     final remotas = await _buscarTodas('settings', ordem: 'key');

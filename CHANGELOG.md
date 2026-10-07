@@ -2,6 +2,11 @@
 
 Aplicativo **Dindin Controller**: clone pessoal do Money Tracker (Flutter), para Linux (PC) e Android (celular), com sincronização em nuvem.
 
+## v1.6.0 (07/10/2026)
+- Metas de orçamento por categoria: defina um limite mensal de gasto para cada categoria (ex: R$ 500 de Alimentação) e acompanhe no Resumo uma barra de progresso (verde, laranja chegando perto e vermelha quando passa), com o gasto, o que resta e quanto passou.
+- Tela nova "Metas de orçamento" (botão no Resumo): definir, mudar e remover limites com facilidade.
+- As metas viajam na sincronização (PC ↔ celular) e se renovam sozinhas todo mês.
+
 ## v1.5.0 (07/10/2026)
 - Título próprio por lançamento: campo novo no formulário (ex: "Gabryel"); na lista ele vira a linha principal do lançamento.
 - Lista de transações reorganizada: título (ou a categoria, quando não há título) em cima; categoria · data · banco na linha do meio; observação numa linha discreta embaixo.
