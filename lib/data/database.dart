@@ -195,10 +195,13 @@ class Db {
   }
 
   // ─── Contas ───
-  Future<List<Account>> accounts() async {
+  Future<List<Account>> accounts({bool incluirArquivadas = false}) async {
     final db = await database;
     final rows = await db.query('accounts',
-        where: 'archived = 0 AND deleted = 0', orderBy: 'name');
+        where: incluirArquivadas
+            ? 'deleted = 0'
+            : 'archived = 0 AND deleted = 0',
+        orderBy: 'name');
     return rows.map(Account.fromMap).toList();
   }
 
@@ -299,6 +302,24 @@ class Db {
     final db = await database;
     await db.update('transactions', {'deleted': 1, 'updated_at': agoraIso()},
         where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Busca uma transação pelo id (para editar).
+  Future<Transaction?> transactionById(int id) async {
+    final db = await database;
+    final rows = await db
+        .query('transactions', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : Transaction.fromMap(rows.first);
+  }
+
+  /// Edita uma transação existente. O carimbo `updated_at` é renovado para a
+  /// alteração viajar até os outros aparelhos na sincronização.
+  Future<void> updateTransaction(Transaction t) async {
+    final db = await database;
+    final mapa = t.toMap()
+      ..remove('id')
+      ..['updated_at'] = agoraIso();
+    await db.update('transactions', mapa, where: 'id = ?', whereArgs: [t.id]);
   }
 
   Future<List<TxView>> transactions({String? month, int limit = 300}) async {

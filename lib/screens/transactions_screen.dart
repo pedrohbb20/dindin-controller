@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../data/icons.dart';
 import '../data/models.dart';
+import 'add_transaction_sheet.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key, this.onChanged});
@@ -57,6 +58,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (confirmar != true) return;
     await Db.i.deleteTransaction(t.id);
     widget.onChanged?.call();
+  }
+
+  /// Abre o formulário preenchido para editar o lançamento.
+  Future<void> _editar(TxView t) async {
+    final atual = await Db.i.transactionById(t.id);
+    if (atual == null || !mounted) return;
+    final mudou = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddTransactionSheet(editar: atual),
+    );
+    if (mudou == true) {
+      await _carregar();
+      widget.onChanged?.call();
+    }
   }
 
   String _titulo(TxView t) {
@@ -146,6 +162,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         valorTxt,
         style: TextStyle(fontWeight: FontWeight.w600, color: valorCor),
       ),
+      onTap: () => _editar(t),
       onLongPress: () => _excluir(t),
     );
   }

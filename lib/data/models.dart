@@ -29,6 +29,10 @@ int? parseAmountToCents(String input) {
   return (v * 100).round();
 }
 
+/// Formata centavos para o campo de digitação (sem símbolo): 2590 → "25,90".
+String centsParaInput(int cents) =>
+    (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
+
 /// ─── Modelos ───────────────────────────────────────────────────────────
 class Account {
   final int? id;

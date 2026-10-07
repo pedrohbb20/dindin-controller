@@ -41,4 +41,12 @@ void main() {
       expect(mesPrefixo(DateTime(2026, 10, 6)), '2026-10');
     });
   });
+
+  group('centsParaInput', () {
+    test('formata centavos para o campo de edição', () {
+      expect(centsParaInput(2590), '25,90');
+      expect(centsParaInput(100000), '1000,00');
+      expect(centsParaInput(5), '0,05');
+    });
+  });
 }

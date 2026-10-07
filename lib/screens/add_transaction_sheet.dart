@@ -5,9 +5,13 @@ import '../data/models.dart';
 import 'gerenciar_categorias_dialog.dart';
 import 'nova_categoria_dialog.dart';
 
-/// Formulário de nova transação (despesa, receita ou transferência).
+/// Formulário de transação: cria uma nova ou edita uma existente
+/// (despesa, receita ou transferência).
 class AddTransactionSheet extends StatefulWidget {
-  const AddTransactionSheet({super.key});
+  const AddTransactionSheet({super.key, this.editar});
+
+  /// Transação a editar; null = nova transação.
+  final Transaction? editar;
 
   @override
   State<AddTransactionSheet> createState() => _AddTransactionSheetState();
@@ -28,6 +32,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   List<Category> _categorias = [];
   String? _erro;
 
+  bool get _editando => widget.editar != null;
+
   @override
   void initState() {
     super.initState();
@@ -42,14 +48,41 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Future<void> _carregar() async {
-    final contas = await Db.i.accounts();
+    // Na edição, contas arquivadas também entram na lista para não perder
+    // o vínculo de lançamentos antigos (ex: Mercado Pago).
+    final contas = await Db.i.accounts(incluirArquivadas: _editando);
     final cats = await Db.i.categories();
     if (!mounted) return;
+    final ed = widget.editar;
     setState(() {
       _contas = contas;
       _categorias = cats;
-      _contaId = contas.isNotEmpty ? contas.first.id : null;
-      _contaDestinoId = contas.length > 1 ? contas[1].id : null;
+      if (ed != null) {
+        // Edição: pré-preenche com a transação atual.
+        _tipo = ed.type;
+        _valorCtrl.text = centsParaInput(ed.amountCents);
+        _data = DateTime.tryParse(ed.date) ?? _data;
+        _notaCtrl.text = ed.note ?? '';
+        _contaId = ed.accountId;
+        _contaDestinoId = ed.toAccountId;
+        _categoriaId = ed.categoryId;
+        // Se a categoria não existir mais (foi removida), não seleciona.
+        if (_categoriaId != null &&
+            !cats.any((c) => c.id == _categoriaId)) {
+          _categoriaId = null;
+        }
+        // Mesmo caso para contas removidas de vez.
+        if (_contaId != null && !contas.any((c) => c.id == _contaId)) {
+          _contaId = null;
+        }
+        if (_contaDestinoId != null &&
+            !contas.any((c) => c.id == _contaDestinoId)) {
+          _contaDestinoId = null;
+        }
+      } else {
+        _contaId = contas.isNotEmpty ? contas.first.id : null;
+        _contaDestinoId = contas.length > 1 ? contas[1].id : null;
+      }
       _carregando = false;
     });
   }
@@ -115,11 +148,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     }
     if (_tipo == 'transfer' &&
         (_contaDestinoId == null || _contaDestinoId == _contaId)) {
-      setState(() => _erro = 'Na transferência, a conta de destino precisa ser diferente.');
+      setState(() => _erro =
+          'Na transferência, a conta de destino precisa ser diferente.');
       return;
     }
 
-    await Db.i.insertTransaction(Transaction(
+    final tx = Transaction(
+      id: widget.editar?.id,
       type: _tipo,
       amountCents: cents,
       date: toIsoDate(_data),
@@ -127,7 +162,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       toAccountId: _tipo == 'transfer' ? _contaDestinoId : null,
       categoryId: _tipo == 'transfer' ? null : _categoriaId,
       note: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
-    ));
+    );
+    if (_editando) {
+      await Db.i.updateTransaction(tx);
+    } else {
+      await Db.i.insertTransaction(tx);
+    }
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }
@@ -148,7 +188,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Nova transação',
+                  Text(_editando ? 'Editar transação' : 'Nova transação',
                       style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 16),
 
@@ -275,7 +315,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   FilledButton.icon(
                     onPressed: _salvar,
                     icon: const Icon(Icons.check),
-                    label: const Text('Salvar'),
+                    label: Text(_editando ? 'Salvar alterações' : 'Salvar'),
                   ),
                 ],
               ),
