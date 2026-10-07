@@ -1,5 +1,4 @@
-import 'dart:math' as math;
-
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
@@ -7,7 +6,7 @@ import '../data/models.dart';
 import '../data/tema.dart';
 
 /// Resumo do mês: receitas, despesas, saldo e o gráfico por categoria
-/// (despesas OU receitas, alternável).
+/// (despesas OU receitas, alternável; rosca interativa: tocar destaca a fatia).
 class SummaryScreen extends StatefulWidget {
   const SummaryScreen({super.key});
 
@@ -37,6 +36,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   List<CategoryTotal> _despCats = [];
   List<CategoryTotal> _recCats = [];
   bool _mostrarReceitas = false; // alterna o gráfico despesas/receitas
+  int _fatiaTocada = -1; // -1 = nenhuma fatia destacada
 
   @override
   void initState() {
@@ -61,7 +61,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   void _mudarMes(int delta) {
-    setState(() => _mes = DateTime(_mes.year, _mes.month + delta));
+    setState(() {
+      _mes = DateTime(_mes.year, _mes.month + delta);
+      _fatiaTocada = -1;
+    });
     _carregar();
   }
 
@@ -197,8 +200,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   ButtonSegment(value: true, label: Text('Receitas')),
                 ],
                 selected: {_mostrarReceitas},
-                onSelectionChanged: (s) =>
-                    setState(() => _mostrarReceitas = s.first),
+                onSelectionChanged: (s) => setState(() {
+                  _mostrarReceitas = s.first;
+                  _fatiaTocada = -1;
+                }),
                 showSelectedIcon: false,
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
@@ -232,27 +237,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: CustomPaint(
-                              painter: _DonutPainter(fatias: fatias),
-                            ),
+                            child: _graficoRosca(fatias, total),
                           ),
                           Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  formatCents(total),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  _mostrarReceitas ? 'em receitas' : 'em gastos',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
+                            child: _centroRosca(fatias, total),
                           ),
                         ],
                       ),
@@ -265,6 +253,98 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// Rosca interativa (fl_chart): tocar numa fatia a destaca e aumenta.
+  Widget _graficoRosca(List<_Fatia> fatias, int total) {
+    return PieChart(
+      PieChartData(
+        pieTouchData: PieTouchData(
+          touchCallback: (event, resposta) {
+            setState(() {
+              if (!event.isInterestedForInteractions ||
+                  resposta == null ||
+                  resposta.touchedSection == null) {
+                _fatiaTocada = -1;
+                return;
+              }
+              _fatiaTocada = resposta.touchedSection!.touchedSectionIndex;
+            });
+          },
+        ),
+        sectionsSpace: 2,
+        centerSpaceRadius: 52,
+        sections: [
+          for (var i = 0; i < fatias.length; i++)
+            _secaoRosca(fatias[i], i, total),
+        ],
+      ),
+    );
+  }
+
+  PieChartSectionData _secaoRosca(_Fatia f, int i, int total) {
+    final tocada = i == _fatiaTocada;
+    final pct = total == 0 ? 0.0 : 100 * f.totalCents / total;
+    return PieChartSectionData(
+      color: f.cor,
+      value: f.totalCents.toDouble(),
+      radius: tocada ? 43 : 32,
+      showTitle: tocada,
+      title: '${pct.toStringAsFixed(0)}%',
+      titleStyle: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+      ),
+    );
+  }
+
+  /// Centro da rosca: mostra o total do mês ou a fatia que está destacada.
+  Widget _centroRosca(List<_Fatia> fatias, int total) {
+    final destacada = _fatiaTocada >= 0 && _fatiaTocada < fatias.length;
+    if (!destacada) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            formatCents(total),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            _mostrarReceitas ? 'em receitas' : 'em gastos',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      );
+    }
+    final f = fatias[_fatiaTocada];
+    final pct = total == 0 ? 0.0 : 100 * f.totalCents / total;
+    return SizedBox(
+      width: 104,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            f.nome,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Text(
+            formatCents(f.totalCents),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          Text(
+            '${pct.toStringAsFixed(1)}%',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       ),
     );
@@ -339,38 +419,4 @@ class _SummaryScreenState extends State<SummaryScreen> {
       ),
     );
   }
-}
-
-/// Desenha o gráfico de rosca (donut) das fatias.
-class _DonutPainter extends CustomPainter {
-  _DonutPainter({required this.fatias});
-
-  final List<_Fatia> fatias;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final total = fatias.fold<int>(0, (s, f) => s + f.totalCents);
-    if (total == 0) return;
-
-    final centro = Offset(size.width / 2, size.height / 2);
-    final raio = size.shortestSide / 2 - 2;
-    const espessura = 30.0;
-    final rect = Rect.fromCircle(center: centro, radius: raio - espessura / 2);
-
-    var inicio = -math.pi / 2; // começa no topo
-    for (final f in fatias) {
-      final sweep = 2 * math.pi * f.totalCents / total;
-      final vao = fatias.length > 1 ? 0.025 : 0.0; // respiro entre fatias
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = espessura
-        ..color = f.cor;
-      canvas.drawArc(
-          rect, inicio + vao / 2, math.max(sweep - vao, 0.01), false, paint);
-      inicio += sweep;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DonutPainter old) => old.fatias != fatias;
 }
