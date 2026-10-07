@@ -1,9 +1,11 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../data/models.dart';
 import '../data/quotes.dart';
+import 'simulador_screen.dart';
 
 /// Aba de Investimentos: carteira (FIIs, ações, ETFs), proventos e reserva.
 class InvestmentsScreen extends StatefulWidget {
@@ -70,6 +72,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Map<String, Quote> _cotas = {};
   DateTime? _cotasEm;
   bool _buscandoCotas = false;
+  Map<String, int> _historico = {}; // mês YYYY-MM → patrimônio (centavos)
 
   @override
   void initState() {
@@ -86,6 +89,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         int.tryParse(await Db.i.getSetting('reserve_cents') ?? '') ?? 0;
     final meta =
         int.tryParse(await Db.i.getSetting('reserve_goal_cents') ?? '') ?? 0;
+    final historico = decodeMapaCents(
+        await Db.i.getSetting('patrimonio_historico_json'));
     if (!mounted) return;
     setState(() {
       _posicoes = posicoes;
@@ -93,6 +98,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       _proventos = proventos;
       _reservaCents = reserva;
       _metaReservaCents = meta;
+      _historico = historico;
       _carregando = false;
     });
     _buscarCotas();
@@ -112,6 +118,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       }
       _buscandoCotas = false;
     });
+    if (cotas.isNotEmpty) _atualizarSnapshot();
   }
 
   String _horaCotas() {
@@ -307,6 +314,25 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ),
           const SizedBox(height: 12),
 
+          // ─── Evolução do patrimônio (histórico) ───
+          if (_historico.length >= 2) ...[
+            _cartaoEvolucao(context),
+            const SizedBox(height: 12),
+          ],
+
+          // ─── Simulador do futuro ───
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.auto_graph, color: cs.primary),
+              title: const Text('Simulador do futuro'),
+              subtitle:
+                  const Text('Quanto seus aportes viram (com e sem inflação)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _abrirSimulador,
+            ),
+          ),
+          const SizedBox(height: 12),
+
           // ─── Reserva de emergência ───
           Card(
             child: Padding(
@@ -467,6 +493,151 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Guarda o valor de mercado do mês atual no histórico (histórico mensal
+  /// fica em `settings.patrimonio_historico_json` e viaja na sincronização).
+  Future<void> _atualizarSnapshot() async {
+    if (!_temCotas || !mounted) return;
+    final mapa =
+        decodeMapaCents(await Db.i.getSetting('patrimonio_historico_json'));
+    final mes = mesPrefixo(DateTime.now());
+    final valor = _totalMercadoCents;
+    if (mapa[mes] == valor) return;
+    mapa[mes] = valor;
+    await Db.i.setSetting(
+        'patrimonio_historico_json', encodeMapaCents(mapa));
+    if (mounted) setState(() => _historico = mapa);
+  }
+
+  void _abrirSimulador() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SimuladorScreen(
+        inicialCents: _temCotas ? _totalMercadoCents : _totalInvestido,
+      ),
+    ));
+  }
+
+  /// Cartão com o gráfico da evolução mensal do patrimônio.
+  Widget _cartaoEvolucao(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final chaves = _historico.keys.toList()..sort();
+    final pontos = [for (final k in chaves) (k, _historico[k]!)];
+    final valores = [for (final p in pontos) p.$2 / 100.0];
+    final maxV = valores.reduce((a, b) => a > b ? a : b);
+    final minV = valores.reduce((a, b) => a < b ? a : b);
+    final margem = (maxV - minV) * 0.15 + 1;
+
+    final inicial = pontos.first.$2;
+    final atual = pontos.last.$2;
+    final delta = atual - inicial;
+    final deltaPct = inicial == 0 ? 0.0 : 100 * delta / inicial;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.stacked_line_chart, size: 18, color: cs.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Evolução do patrimônio',
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  minY: (minV - margem) < 0 ? 0 : minV - margem,
+                  maxY: maxV + margem,
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (tocados) => [
+                        for (final t in tocados)
+                          LineTooltipItem(
+                            '${_labelMes(pontos[t.x.round()].$1)}: '
+                            '${formatCents(pontos[t.x.round()].$2)}',
+                            const TextStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 48,
+                        interval:
+                            (maxV - minV + 2 * margem) / 3 <= 0
+                                ? 1
+                                : (maxV - minV + 2 * margem) / 3,
+                        getTitlesWidget: (v, meta) => Text(
+                          compactoReais(v),
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 1,
+                        getTitlesWidget: (v, meta) {
+                          final i = v.round();
+                          if (i < 0 || i >= pontos.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(_labelMes(pontos[i].$1),
+                                style: const TextStyle(fontSize: 10)),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: [
+                        for (var i = 0; i < pontos.length; i++)
+                          FlSpot(i.toDouble(), valores[i]),
+                      ],
+                      isCurved: true,
+                      curveSmoothness: 0.25,
+                      color: cs.primary,
+                      barWidth: 3,
+                      dotData: FlDotData(show: pontos.length <= 14),
+                      belowBarData: BarAreaData(
+                          show: true,
+                          color: cs.primary.withValues(alpha: 0.12)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'De ${_labelMes(pontos.first.$1)} a ${_labelMes(pontos.last.$1)}: '
+              '${delta >= 0 ? '+' : '-'}${formatCents(delta.abs())} '
+              '(${deltaPct >= 0 ? '+' : ''}${deltaPct.toStringAsFixed(1)}%) '
+              '· atualiza sozinho todo mês.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }

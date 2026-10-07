@@ -409,6 +409,46 @@ class Db {
     return rows.map(TxView.fromMap).toList();
   }
 
+  // ─── Importação automática (Pluggy) ───
+
+  /// A tabela de controle da importação existe neste aparelho?
+  Future<bool> _temJournalPluggy() async {
+    final db = await database;
+    final r = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='pluggy_journal'");
+    return r.isNotEmpty;
+  }
+
+  /// Lançamentos importados pelos bancos e ainda não conferidos
+  /// (tudo depois do último "marcar como visto").
+  Future<List<TxView>> importadosParaConferir() async {
+    if (!await _temJournalPluggy()) return [];
+    final db = await database;
+    final desde = await getSetting('importados_revisados_ate') ?? '';
+    final rows = await db.rawQuery('''
+      SELECT t.id, t.type, t.amount_cents, t.date, t.title, t.note,
+             a.name AS account_name,
+             a2.name AS to_account_name,
+             c.name AS category_name, c.icon, c.color_value
+      FROM pluggy_journal j
+      JOIN transactions t ON t.id = j.tx_id
+      JOIN accounts a ON a.id = t.account_id
+      LEFT JOIN accounts a2 ON a2.id = t.to_account_id
+      LEFT JOIN categories c ON c.id = t.category_id
+      WHERE t.deleted = 0 AND j.importado_em > ?
+      ORDER BY t.date DESC, t.id DESC
+    ''', [desde]);
+    return rows.map(TxView.fromMap).toList();
+  }
+
+  /// Quantos lançamentos importados aguardam conferência.
+  Future<int> importadosPendentes() async =>
+      (await importadosParaConferir()).length;
+
+  /// Marca como conferido tudo que foi importado até agora.
+  Future<void> marcarImportadosConferidos() =>
+      setSetting('importados_revisados_ate', agoraIso());
+
   // ─── Resumo ───
   Future<Map<String, int>> monthTotals(String month) async {
     final db = await database;

@@ -6,6 +6,9 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'data/database.dart';
+import 'data/models.dart';
+import 'data/notificacoes.dart';
 import 'data/sync_config.dart';
 import 'data/tema.dart';
 import 'screens/home_screen.dart';
@@ -21,6 +24,15 @@ Future<void> main() async {
   }
   // Preferência de tema salva (padrão: modo escuro)
   await Tema.carregar();
+  // Notificações locais: inicia e reagenda os lembretes das contas previstas.
+  await Notificacoes.iniciar();
+  try {
+    final contas = decodeContasPrevistas(
+        await Db.i.getSetting('contas_previstas_json'));
+    if (contas.isNotEmpty) Notificacoes.programarVencimentos(contas);
+  } catch (_) {
+    // sem banco ainda: sem lembretes nesta abertura
+  }
   // Nuvem de sincronização (só liga se a chave estiver configurada; sem ela
   // o app funciona 100% offline, como sempre funcionou).
   if (SyncConfig.configurado) {

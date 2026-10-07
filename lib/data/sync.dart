@@ -39,6 +39,8 @@ class Sync {
     'reserve_cents',
     'reserve_goal_cents',
     'budgets_json',
+    'patrimonio_historico_json',
+    'contas_previstas_json',
   ];
 
   /// Cliente Supabase (só usar depois de checar [_iniciado]).

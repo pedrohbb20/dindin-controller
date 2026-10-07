@@ -5,6 +5,8 @@ import '../data/database.dart';
 import '../data/models.dart';
 import '../data/tema.dart';
 import 'budgets_screen.dart';
+import 'contas_previstas_screen.dart';
+import 'review_screen.dart';
 
 /// Resumo do mês: receitas, despesas, saldo e o gráfico por categoria
 /// (despesas OU receitas, alternável; rosca interativa: tocar destaca a fatia).
@@ -41,6 +43,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   Map<String, int> _metas = {}; // sync_id da categoria → limite (centavos)
   List<Category> _catDespesas = []; // categorias de despesa (nome e meta)
+  int _pendentes = 0; // lançamentos importados aguardando conferência
+  List<ContaPrevista> _contasPrevistas = []; // contas fixas cadastradas
 
   @override
   void initState() {
@@ -56,6 +60,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final rec = await Db.i.monthByCategory(prefixo, 'income');
     final metas = decodeMetasJson(await Db.i.getSetting('budgets_json'));
     final catDespesas = await Db.i.categories(type: 'expense');
+    final pendentes = await Db.i.importadosPendentes();
+    final contasPrevistas = decodeContasPrevistas(
+        await Db.i.getSetting('contas_previstas_json'));
     if (!mounted) return;
     setState(() {
       _receitas = totais['income'] ?? 0;
@@ -64,6 +71,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _recCats = rec;
       _metas = metas;
       _catDespesas = catDespesas;
+      _pendentes = pendentes;
+      _contasPrevistas = contasPrevistas;
       _carregando = false;
     });
   }
@@ -101,6 +110,141 @@ class _SummaryScreenState extends State<SummaryScreen> {
       ));
     }
     return lista;
+  }
+
+  Future<void> _abrirContas() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ContasPrevistasScreen()),
+    );
+    if (mounted) _carregar();
+  }
+
+  /// Próximos vencimentos (7 dias) das contas previstas, ou o convite para
+  /// cadastrar as primeiras.
+  List<Widget> _secaoContas(BuildContext context) {
+    final tema = Theme.of(context);
+    if (_contasPrevistas.isEmpty) {
+      return [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: _abrirContas,
+            icon: const Icon(Icons.event_repeat, size: 18),
+            label: const Text('Adicionar contas previstas'),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ];
+    }
+
+    final hoje = DateTime.now();
+    final hojeZero = DateTime(hoje.year, hoje.month, hoje.day);
+    final proximos = <(ContaPrevista, DateTime)>[];
+    for (final c in _contasPrevistas) {
+      final data = c.proximaData();
+      final dias = data.difference(hojeZero).inDays;
+      if (dias >= 0 && dias <= 6) proximos.add((c, data));
+    }
+    proximos.sort((a, b) => a.$2.compareTo(b.$2));
+
+    return [
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.event_repeat,
+                      size: 18, color: tema.colorScheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Contas previstas',
+                        style: tema.textTheme.titleSmall),
+                  ),
+                  TextButton.icon(
+                    onPressed: _abrirContas,
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Gerenciar'),
+                  ),
+                ],
+              ),
+              if (proximos.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, right: 8),
+                  child: Text('Nada vencendo nos próximos 7 dias.',
+                      style: tema.textTheme.bodySmall),
+                )
+              else
+                for (final (conta, data) in proximos.take(5))
+                  _linhaVencimento(tema, conta, data, hojeZero),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 20),
+    ];
+  }
+
+  Widget _linhaVencimento(
+      ThemeData tema, ContaPrevista conta, DateTime data, DateTime hojeZero) {
+    final dias = data.difference(hojeZero).inDays;
+    final quando = switch (dias) {
+      0 => 'vence hoje',
+      1 => 'vence amanhã',
+      _ => 'vence em $dias dias',
+    };
+    final dataTxt =
+        '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}';
+    final cor =
+        dias == 0 ? Colors.orange.shade800 : tema.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, right: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              conta.valorCents > 0
+                  ? '${conta.nome} · ${formatCents(conta.valorCents)}'
+                  : conta.nome,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13.5),
+            ),
+          ),
+          Text('$quando ($dataTxt)',
+              style: TextStyle(fontSize: 12, color: cor)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _abrirRevisao() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ReviewScreen()),
+    );
+    if (mounted) _carregar();
+  }
+
+  /// Cartão que aparece quando os bancos trouxeram lançamentos para conferir.
+  List<Widget> _secaoRevisao(BuildContext context) {
+    if (_pendentes == 0) return [];
+    return [
+      Card(
+        child: ListTile(
+          leading: Icon(Icons.fact_check_outlined,
+              color: Theme.of(context).colorScheme.primary),
+          title: Text(_pendentes == 1
+              ? '1 lançamento importado para conferir'
+              : '$_pendentes lançamentos importados para conferir'),
+          subtitle: const Text('Vieram dos bancos automaticamente'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _abrirRevisao,
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
   }
 
   Future<void> _abrirMetas() async {
@@ -321,8 +465,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
           ),
           const SizedBox(height: 16),
 
+          // ─── Importados aguardando conferência ───
+          ..._secaoRevisao(context),
+
           // ─── Metas de orçamento (se houver alguma definida) ───
           ..._secaoMetas(context),
+
+          // ─── Contas previstas (vencimentos próximos) ───
+          ..._secaoContas(context),
 
           // ─── Gráfico por categoria (despesas / receitas) ───
           Row(

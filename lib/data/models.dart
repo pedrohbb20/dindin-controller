@@ -35,23 +35,110 @@ int? parseAmountToCents(String input) {
 String centsParaInput(int cents) =>
     (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
 
-/// ─── Metas de orçamento (settings: budgets_json) ───────────────────────
-/// Serializa o mapa de metas (sync_id da categoria → limite em centavos).
-String encodeMetasJson(Map<String, int> metas) => jsonEncode(metas);
+/// ─── Mapas {chave: centavos} em settings ───────────────────────────────
+/// Usado pelas metas de orçamento (`budgets_json`) e pelo histórico do
+/// patrimônio (`patrimonio_historico_json`).
+String encodeMapaCents(Map<String, int> mapa) => jsonEncode(mapa);
 
-/// Lê o JSON das metas; tolerante a nulo, vazio, lixo ou valores errados.
-Map<String, int> decodeMetasJson(String? json) {
+/// Lê um mapa {chave: centavos}; tolerante a nulo, vazio, lixo ou erros.
+Map<String, int> decodeMapaCents(String? json) {
   if (json == null || json.trim().isEmpty) return {};
   try {
     final bruto = jsonDecode(json);
     if (bruto is! Map) return {};
-    final metas = <String, int>{};
+    final mapa = <String, int>{};
     bruto.forEach((chave, valor) {
-      if (valor is num && valor > 0) metas[chave.toString()] = valor.toInt();
+      if (valor is num && valor > 0) mapa[chave.toString()] = valor.toInt();
     });
-    return metas;
+    return mapa;
   } catch (_) {
     return {};
+  }
+}
+
+/// Serializa o mapa de metas (sync_id da categoria → limite em centavos).
+String encodeMetasJson(Map<String, int> metas) => encodeMapaCents(metas);
+
+/// Lê o JSON das metas; tolerante a nulo, vazio, lixo ou valores errados.
+Map<String, int> decodeMetasJson(String? json) => decodeMapaCents(json);
+
+/// Formata reais de forma curta: "R$ 2,4 mil", "R$ 1,2 mi".
+String compactoReais(double reais) {
+  if (reais >= 1000000) {
+    return 'R\$ ${(reais / 1000000).toStringAsFixed(1).replaceAll('.', ',')} mi';
+  }
+  if (reais >= 1000) {
+    return 'R\$ ${(reais / 1000).toStringAsFixed(1).replaceAll('.', ',')} mil';
+  }
+  return 'R\$ ${reais.toStringAsFixed(0)}';
+}
+
+/// ─── Contas previstas (settings: contas_previstas_json) ────────────────
+/// Uma conta fixa/prevista (ex.: Netflix no dia 12, salário no dia 5).
+class ContaPrevista {
+  const ContaPrevista({
+    required this.id,
+    required this.nome,
+    this.valorCents = 0,
+    this.dia = 1,
+  });
+
+  final String id;
+  final String nome;
+  final int valorCents; // estimativa (0 = não informado)
+  final int dia; // dia do mês (1 a 31)
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'nome': nome,
+        'valor_cents': valorCents,
+        'dia': dia,
+      };
+
+  static ContaPrevista fromJson(Map<String, Object?> m) => ContaPrevista(
+        id: m['id']?.toString() ?? '',
+        nome: m['nome']?.toString() ?? '',
+        valorCents: (m['valor_cents'] as num?)?.toInt() ?? 0,
+        dia: ((m['dia'] as num?)?.toInt() ?? 1).clamp(1, 31).toInt(),
+      );
+
+  /// Próxima data de vencimento a partir de hoje (dia ajustado ao mês).
+  DateTime proximaData([DateTime? deRef]) {
+    final referencia = deRef ?? DateTime.now();
+    DateTime comDia(DateTime base) {
+      final ultimoDia = DateTime(base.year, base.month + 1, 0).day;
+      final d = dia > ultimoDia ? ultimoDia : dia;
+      return DateTime(base.year, base.month, d);
+    }
+
+    final esteMes = comDia(referencia);
+    final hojeZero =
+        DateTime(referencia.year, referencia.month, referencia.day);
+    if (!esteMes.isBefore(hojeZero)) return esteMes;
+    return comDia(DateTime(referencia.year, referencia.month + 1, 1));
+  }
+}
+
+/// Serializa a lista de contas previstas.
+String encodeContasPrevistas(List<ContaPrevista> contas) =>
+    jsonEncode([for (final c in contas) c.toJson()]);
+
+/// Lê a lista de contas previstas; tolerante a nulo, vazio e lixo.
+List<ContaPrevista> decodeContasPrevistas(String? json) {
+  if (json == null || json.trim().isEmpty) return [];
+  try {
+    final bruto = jsonDecode(json);
+    if (bruto is! List) return [];
+    final contas = <ContaPrevista>[];
+    for (final item in bruto) {
+      if (item is Map) {
+        final conta = ContaPrevista.fromJson(Map<String, Object?>.from(item));
+        if (conta.id.isNotEmpty && conta.nome.isNotEmpty) contas.add(conta);
+      }
+    }
+    return contas;
+  } catch (_) {
+    return [];
   }
 }
 
