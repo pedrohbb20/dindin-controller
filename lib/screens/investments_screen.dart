@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -533,6 +535,25 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     ));
   }
 
+  /// Passo "redondo" para as linhas do gráfico (evita rótulos colados).
+  double _intervaloBonito(double faixa) {
+    if (faixa <= 0) return 1;
+    final bruto = faixa / 4;
+    final magnitude =
+        math.pow(10, (math.log(bruto) / math.ln10).floor()).toDouble();
+    final normalizado = bruto / magnitude;
+    final passo = normalizado <= 1
+        ? 1.0
+        : normalizado <= 2
+            ? 2.0
+            : normalizado <= 2.5
+                ? 2.5
+                : normalizado <= 5
+                    ? 5.0
+                    : 10.0;
+    return passo * magnitude;
+  }
+
   /// Cartão com o gráfico da evolução mensal do patrimônio.
   Widget _cartaoEvolucao(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -547,6 +568,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final atual = pontos.last.$2;
     final delta = atual - inicial;
     final deltaPct = inicial == 0 ? 0.0 : 100 * delta / inicial;
+    final minY = (minV - margem) < 0 ? 0.0 : minV - margem;
+    final maxY = maxV + margem;
+    final intervaloY = _intervaloBonito(maxY - minY);
 
     return Card(
       child: Padding(
@@ -569,9 +593,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               height: 180,
               child: LineChart(
                 LineChartData(
-                  minY: (minV - margem) < 0 ? 0 : minV - margem,
-                  maxY: maxV + margem,
-                  gridData: const FlGridData(show: false),
+                  minY: minY,
+                  maxY: maxY,
+                  gridData: FlGridData(
+                    drawVerticalLine: false,
+                    horizontalInterval: intervaloY,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: cs.outlineVariant.withValues(alpha: 0.35),
+                      strokeWidth: 1,
+                    ),
+                  ),
                   borderData: FlBorderData(show: false),
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
@@ -593,21 +624,25 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 48,
-                        interval:
-                            (maxV - minV + 2 * margem) / 3 <= 0
-                                ? 1
-                                : (maxV - minV + 2 * margem) / 3,
+                        reservedSize: 66,
+                        interval: intervaloY,
+                        // Sem rótulos "de borda": o fl_chart adiciona por
+                        // padrão um rótulo no mínimo e outro no máximo,
+                        // além da grade, e eles ficavam colados
+                        // nos vizinhos (ex.: 1,9 e 2,0 mil).
+                        minIncluded: false,
+                        maxIncluded: false,
                         getTitlesWidget: (v, meta) => Text(
                           compactoReais(v),
                           style: const TextStyle(fontSize: 10),
+                          maxLines: 1,
                         ),
                       ),
                     ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        interval: 1,
+                        interval: pontos.length > 6 ? 2 : 1,
                         getTitlesWidget: (v, meta) {
                           final i = v.round();
                           if (i < 0 || i >= pontos.length) {

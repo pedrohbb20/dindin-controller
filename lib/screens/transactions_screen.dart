@@ -182,7 +182,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       children: [
         _cabecalho(context),
         if (!_filtros.vazio) _chipsAtivos(context),
-        if (!_carregando && _itens.isNotEmpty) _resumoDoFiltro(context),
+        if (!_carregando && _itens.isNotEmpty) _totaisDoFiltro(context),
         const Divider(height: 1),
         Expanded(
           child: _carregando
@@ -306,46 +306,103 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  /// Resumo do que está sendo mostrado: quantidade e somas de entradas/saídas.
-  Widget _resumoDoFiltro(BuildContext context) {
+  /// Totais do que está sendo mostrado: cartões de Receitas e Despesas
+  /// (iguais aos do Resumo, adaptados) + contagem de lançamentos.
+  Widget _totaisDoFiltro(BuildContext context) {
     var entradas = 0;
     var saidas = 0;
+    var transferencias = 0;
     for (final t in _itens) {
       if (t.type == 'income') {
         entradas += t.amountCents;
       } else if (t.type == 'expense') {
         saidas += t.amountCents;
+      } else {
+        transferencias++;
       }
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${_itens.length} lançamento${_itens.length == 1 ? '' : 's'}',
-            style: Theme.of(context).textTheme.bodySmall,
+          Row(
+            children: [
+              Expanded(
+                child: _cartaoTotal(
+                  context,
+                  titulo: 'Receitas',
+                  valor: entradas,
+                  cor: Colors.green.shade700,
+                  icone: Icons.arrow_upward,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _cartaoTotal(
+                  context,
+                  titulo: 'Despesas',
+                  valor: saidas,
+                  cor: Colors.red.shade700,
+                  icone: Icons.arrow_downward,
+                ),
+              ),
+            ],
           ),
-          const Spacer(),
-          if (entradas > 0)
-            Text(
-              '+ ${formatCents(entradas)}',
-              style: TextStyle(
-                color: Colors.green.shade700,
-                fontWeight: FontWeight.w600,
-                fontSize: 12.5,
-              ),
-            ),
-          if (entradas > 0 && saidas > 0) const SizedBox(width: 12),
-          if (saidas > 0)
-            Text(
-              '- ${formatCents(saidas)}',
-              style: TextStyle(
-                color: Colors.red.shade700,
-                fontWeight: FontWeight.w600,
-                fontSize: 12.5,
-              ),
-            ),
+          const SizedBox(height: 6),
+          Text(
+            transferencias > 0
+                ? '${_itens.length} lançamentos · '
+                    '$transferencias transferência${transferencias == 1 ? '' : 's'} (não entram nas somas)'
+                : '${_itens.length} lançamento${_itens.length == 1 ? '' : 's'}',
+            style: const TextStyle(fontSize: 13),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _cartaoTotal(
+    BuildContext context, {
+    required String titulo,
+    required int valor,
+    required Color cor,
+    required IconData icone,
+  }) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icone, size: 20, color: cor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              formatCents(valor),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: cor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -452,7 +509,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
       trailing: Text(
         valorTxt,
-        style: TextStyle(fontWeight: FontWeight.w600, color: valorCor),
+        style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.w700, color: valorCor),
       ),
       onTap: () => _editar(t),
       onLongPress: () => _excluir(t),

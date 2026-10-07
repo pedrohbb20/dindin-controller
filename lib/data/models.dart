@@ -62,13 +62,16 @@ String encodeMetasJson(Map<String, int> metas) => encodeMapaCents(metas);
 /// Lê o JSON das metas; tolerante a nulo, vazio, lixo ou valores errados.
 Map<String, int> decodeMetasJson(String? json) => decodeMapaCents(json);
 
-/// Formata reais de forma curta: "R$ 2,4 mil", "R$ 1,2 mi".
+/// Formata reais de forma curta: "R$ 2,4 mil", "R$ 132 mil", "R$ 1,2 mi".
 String compactoReais(double reais) {
+  String numero(double v, int casas) =>
+      v.toStringAsFixed(casas).replaceAll('.', ',');
   if (reais >= 1000000) {
-    return 'R\$ ${(reais / 1000000).toStringAsFixed(1).replaceAll('.', ',')} mi';
+    return 'R\$ ${numero(reais / 1000000, 1)} mi';
   }
   if (reais >= 1000) {
-    return 'R\$ ${(reais / 1000).toStringAsFixed(1).replaceAll('.', ',')} mil';
+    final mil = reais / 1000;
+    return 'R\$ ${numero(mil, mil >= 100 ? 0 : 1)} mil';
   }
   return 'R\$ ${reais.toStringAsFixed(0)}';
 }

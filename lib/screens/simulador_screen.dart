@@ -196,11 +196,12 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                       leftTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
-                          reservedSize: 48,
+                          reservedSize: 66,
                           interval: maxY / 4,
                           getTitlesWidget: (v, meta) => Text(
                             compactoReais(v),
                             style: const TextStyle(fontSize: 10),
+                            maxLines: 1,
                           ),
                         ),
                       ),
