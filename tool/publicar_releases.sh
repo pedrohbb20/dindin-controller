@@ -8,6 +8,10 @@ APK="$HOME/apk"
 PROJ="/home/pedro/Documentos/Projetos/dindin_controller"
 cd "$PROJ" || exit 1
 
+SHA_FASE1=$(git rev-parse c3e4a1f)
+SHA_BASE=$(git rev-parse b86e3ba)
+SHA_HEAD=$(git rev-parse HEAD)
+
 # 1) pacote do PC (Linux) da v1.2.1, se ainda não existir
 PACOTE="$APK/dindin-controller-v1.2.1-linux-x64.tar.gz"
 if [ ! -f "$PACOTE" ]; then
@@ -52,13 +56,13 @@ Anexos: APK arm64 (Android) e pacote do PC Linux (extrair e rodar o binário de 
 EOF
 
 # 3) cria as releases (1.0.0 primeiro; 1.2.1 como "latest")
-gh release create v1.0.0 --target c3e4a1f --title "v1.0.0 - Primeira versao" --notes-file /tmp/notas-v1.0.0.md --latest=false "$APK/dindin-controller-v1.0.0.apk" || exit 2
-gh release create v1.1.0 --target b86e3ba --title "v1.1.0 - Sincronizacao em nuvem" --notes-file /tmp/notas-v1.1.0.md --latest=false "$APK/dindin-controller-v1.1.0.apk" "$APK/dindin-controller-v1.1.0-arm64.apk" || exit 3
-gh release create v1.2.0 --target b86e3ba --title "v1.2.0 - Gerenciar categorias" --notes-file /tmp/notas-v1.2.0.md --latest=false "$APK/dindin-controller-v1.2.0-arm64.apk" || exit 4
+gh release create v1.0.0 --target "$SHA_FASE1" --title "v1.0.0 - Primeira versao" --notes-file /tmp/notas-v1.0.0.md --latest=false "$APK/dindin-controller-v1.0.0.apk" || exit 2
+gh release create v1.1.0 --target "$SHA_BASE" --title "v1.1.0 - Sincronizacao em nuvem" --notes-file /tmp/notas-v1.1.0.md --latest=false "$APK/dindin-controller-v1.1.0.apk" "$APK/dindin-controller-v1.1.0-arm64.apk" || exit 3
+gh release create v1.2.0 --target "$SHA_BASE" --title "v1.2.0 - Gerenciar categorias" --notes-file /tmp/notas-v1.2.0.md --latest=false "$APK/dindin-controller-v1.2.0-arm64.apk" || exit 4
 if [ -n "${PACOTE:-}" ]; then
-  gh release create v1.2.1 --target main --title "v1.2.1 - Icone e nome oficiais" --notes-file /tmp/notas-v1.2.1.md --latest "$APK/dindin-controller-v1.2.1-arm64.apk" "$PACOTE" || exit 5
+  gh release create v1.2.1 --target "$SHA_HEAD" --title "v1.2.1 - Icone e nome oficiais" --notes-file /tmp/notas-v1.2.1.md --latest "$APK/dindin-controller-v1.2.1-arm64.apk" "$PACOTE" || exit 5
 else
-  gh release create v1.2.1 --target main --title "v1.2.1 - Icone e nome oficiais" --notes-file /tmp/notas-v1.2.1.md --latest "$APK/dindin-controller-v1.2.1-arm64.apk" || exit 5
+  gh release create v1.2.1 --target "$SHA_HEAD" --title "v1.2.1 - Icone e nome oficiais" --notes-file /tmp/notas-v1.2.1.md --latest "$APK/dindin-controller-v1.2.1-arm64.apk" || exit 5
 fi
 
 echo "===== RELEASES PUBLICADAS ====="
