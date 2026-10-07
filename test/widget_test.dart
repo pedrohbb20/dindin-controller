@@ -49,4 +49,26 @@ void main() {
       expect(centsParaInput(5), '0,05');
     });
   });
+
+  group('Transaction.title', () {
+    test('guarda e lê o título próprio do lançamento', () {
+      final t = Transaction(
+        type: 'expense',
+        amountCents: 500,
+        date: '2026-10-06',
+        accountId: 1,
+        title: 'Gabryel',
+      );
+      expect(t.toMap()['title'], 'Gabryel');
+      final lido = Transaction.fromMap({
+        'id': 1,
+        'type': 'expense',
+        'amount_cents': 500,
+        'date': '2026-10-06',
+        'account_id': 1,
+        'title': 'Gabryel',
+      });
+      expect(lido.title, 'Gabryel');
+    });
+  });
 }

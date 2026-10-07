@@ -19,6 +19,7 @@ class AddTransactionSheet extends StatefulWidget {
 
 class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final _valorCtrl = TextEditingController();
+  final _tituloCtrl = TextEditingController();
   final _notaCtrl = TextEditingController();
 
   String _tipo = 'expense';
@@ -43,6 +44,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   @override
   void dispose() {
     _valorCtrl.dispose();
+    _tituloCtrl.dispose();
     _notaCtrl.dispose();
     super.dispose();
   }
@@ -62,6 +64,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         _tipo = ed.type;
         _valorCtrl.text = centsParaInput(ed.amountCents);
         _data = DateTime.tryParse(ed.date) ?? _data;
+        _tituloCtrl.text = ed.title ?? '';
         _notaCtrl.text = ed.note ?? '';
         _contaId = ed.accountId;
         _contaDestinoId = ed.toAccountId;
@@ -161,6 +164,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       accountId: _contaId!,
       toAccountId: _tipo == 'transfer' ? _contaDestinoId : null,
       categoryId: _tipo == 'transfer' ? null : _categoriaId,
+      title: _tituloCtrl.text.trim().isEmpty ? null : _tituloCtrl.text.trim(),
       note: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
     );
     if (_editando) {
@@ -293,11 +297,24 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   ),
                   const SizedBox(height: 12),
 
+                  // Título próprio do lançamento (ex: "Gabryel")
+                  TextField(
+                    controller: _tituloCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Título (opcional)',
+                      hintText: 'ex: Gabryel',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   // Observação
                   TextField(
                     controller: _notaCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Observação (opcional)',
+                      hintText: 'ex: pix para pagar a corrida',
                       border: OutlineInputBorder(),
                     ),
                   ),

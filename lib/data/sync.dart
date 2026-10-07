@@ -362,6 +362,7 @@ class Sync {
         'to_account_sync': toAcc,
         'category_sync': cat,
         'note': l['note'],
+        'title': l['title'],
         'deleted': ((l['deleted'] as int?) ?? 0) == 1,
         'updated_at': l['updated_at'],
       });
@@ -405,6 +406,7 @@ class Sync {
       'to_account_id': toAcc,
       'category_id': cat,
       'note': r['note'],
+      'title': r['title'],
       'deleted': _bool(r['deleted']) ? 1 : 0,
       'updated_at': r['updated_at'],
     };

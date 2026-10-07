@@ -136,16 +136,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _ => (formatCents(t.amountCents), Colors.blueGrey),
     };
 
-    final subtitulo = StringBuffer(_dataBonita(t.date));
-    subtitulo.write(' · ${t.accountName}');
-    if (t.type == 'transfer' && t.toAccountName != null) {
-      subtitulo.write(' → ${t.toAccountName}');
-    }
-    if (t.note != null && t.note!.isNotEmpty) {
-      subtitulo.write(' · ${t.note}');
-    }
+    final temTitulo = t.title != null && t.title!.isNotEmpty;
+    final temObs = t.note != null && t.note!.isNotEmpty;
+
+    // Linha principal: o título próprio do lançamento; sem ele, a categoria.
+    final linhaPrincipal = temTitulo ? t.title! : _titulo(t);
+
+    // Linha do meio: categoria · data · banco (a categoria só aparece aqui
+    // quando o título próprio está ocupando a linha principal).
+    final partes = <String>[
+      if (temTitulo) _titulo(t),
+      _dataBonita(t.date),
+      if (t.type == 'transfer' && t.toAccountName != null)
+        '${t.accountName} → ${t.toAccountName}'
+      else
+        t.accountName,
+    ];
 
     return ListTile(
+      isThreeLine: temObs,
       leading: CircleAvatar(
         backgroundColor: cor.withValues(alpha: 0.18),
         child: Icon(
@@ -156,8 +165,29 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           size: 20,
         ),
       ),
-      title: Text(_titulo(t)),
-      subtitle: Text(subtitulo.toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+      title:
+          Text(linhaPrincipal, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(partes.join(' · '),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (temObs)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                t.note!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ),
+        ],
+      ),
       trailing: Text(
         valorTxt,
         style: TextStyle(fontWeight: FontWeight.w600, color: valorCor),

@@ -47,9 +47,14 @@ create table if not exists public.transactions (
   to_account_sync uuid,
   category_sync uuid,
   note text,
+  title text,
   deleted boolean not null default false,
   updated_at timestamptz not null default now()
 );
+
+-- v4: título próprio do lançamento (para bancos já existentes; inofensivo
+-- em bancos novos, que já nascem com a coluna).
+alter table public.transactions add column if not exists title text;
 
 create table if not exists public.investments (
   sync_id uuid primary key,

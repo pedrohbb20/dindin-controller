@@ -154,6 +154,7 @@ class Transaction {
   final int accountId;
   final int? toAccountId;
   final int? categoryId;
+  final String? title; // título curto do lançamento (ex: "Gabryel")
   final String? note;
 
   const Transaction({
@@ -164,6 +165,7 @@ class Transaction {
     required this.accountId,
     this.toAccountId,
     this.categoryId,
+    this.title,
     this.note,
   });
 
@@ -175,6 +177,7 @@ class Transaction {
         'account_id': accountId,
         'to_account_id': toAccountId,
         'category_id': categoryId,
+        'title': title,
         'note': note,
       };
 
@@ -186,6 +189,7 @@ class Transaction {
         accountId: m['account_id'] as int,
         toAccountId: m['to_account_id'] as int?,
         categoryId: m['category_id'] as int?,
+        title: m['title'] as String?,
         note: m['note'] as String?,
       );
 }
@@ -201,6 +205,7 @@ class TxView {
   final String? categoryName;
   final String? categoryIcon;
   final int? categoryColor;
+  final String? title;
   final String? note;
 
   const TxView({
@@ -213,6 +218,7 @@ class TxView {
     this.categoryName,
     this.categoryIcon,
     this.categoryColor,
+    this.title,
     this.note,
   });
 
@@ -226,6 +232,7 @@ class TxView {
         categoryName: m['category_name'] as String?,
         categoryIcon: m['icon'] as String?,
         categoryColor: m['color_value'] as int?,
+        title: m['title'] as String?,
         note: m['note'] as String?,
       );
 }

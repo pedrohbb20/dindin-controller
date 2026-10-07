@@ -38,7 +38,7 @@ class Db {
     final path = p.join(dir.path, 'dindin.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _create,
       onUpgrade: _upgrade,
@@ -77,7 +77,8 @@ class Db {
         account_id INTEGER NOT NULL REFERENCES accounts(id),
         to_account_id INTEGER REFERENCES accounts(id),
         category_id INTEGER REFERENCES categories(id),
-        note TEXT
+        note TEXT,
+        title TEXT
       )
     ''');
 
@@ -124,6 +125,10 @@ class Db {
     }
     if (oldVersion < 3) {
       await _migrateToV3(db);
+    }
+    if (oldVersion < 4) {
+      // v4: título próprio do lançamento (ex: "Gabryel").
+      await db.execute('ALTER TABLE transactions ADD COLUMN title TEXT');
     }
   }
 
@@ -325,7 +330,7 @@ class Db {
   Future<List<TxView>> transactions({String? month, int limit = 300}) async {
     final db = await database;
     final rows = await db.rawQuery('''
-      SELECT t.id, t.type, t.amount_cents, t.date, t.note,
+      SELECT t.id, t.type, t.amount_cents, t.date, t.title, t.note,
              a.name AS account_name,
              a2.name AS to_account_name,
              c.name AS category_name, c.icon, c.color_value
