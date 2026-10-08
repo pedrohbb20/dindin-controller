@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'data/auto_sync.dart';
 import 'data/database.dart';
 import 'data/models.dart';
 import 'data/notificacoes.dart';
@@ -45,6 +46,8 @@ Future<void> main() async {
       // sem nuvem o app segue funcionando normalmente
     }
   }
+  // Sincronização automática: ao abrir, de hora em hora e ao voltar.
+  AutoSync.iniciar();
   runApp(const DindinApp());
 }
 

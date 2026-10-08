@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/sync.dart';
+import '../data/auto_sync.dart';
 import '../data/tema.dart';
 import 'add_transaction_sheet.dart';
 import 'accounts_screen.dart';
@@ -24,8 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Sincronização silenciosa ao abrir (só roda se configurada e logada).
-    WidgetsBinding.instance.addPostFrameCallback((_) => Sync.silencioso());
+    // Sincronização silenciosa ao abrir (respeita a opção de Ajustes e a
+    // nuvem; de hora em hora o AutoSync tenta de novo sozinho).
+    WidgetsBinding.instance.addPostFrameCallback((_) => AutoSync.tentarAgora());
   }
 
   void _recarregar() => setState(() => _versao++);

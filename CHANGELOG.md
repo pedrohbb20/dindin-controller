@@ -2,6 +2,9 @@
 
 Aplicativo **Dindin Controller**: clone pessoal do Money Tracker (Flutter), para Linux (PC) e Android (celular), com sincronização em nuvem.
 
+## v1.7.1 (07/10/2026)
+- **Sincronização automática**: o app sincroniza sozinho ao abrir, de hora em hora (enquanto está aberto) e ao voltar para ele, no PC e no celular. Não precisa mais apertar o botão; a opção pode ser desligada em Ajustes.
+
 ## v1.7.0 (07/10/2026)
 - **Transações reformulada**: separada por mês (igual ao Resumo) com filtros de tipo, categorias, bancos, período personalizado (ex.: 05/10 a 10/10), busca por texto e faixa de valor; etiquetas do que está ativo (com X para tirar) e resumo com entradas/saídas do resultado.
 - **Aba Ajustes (nova)**: modo claro/escuro/sistema, 13 cores predefinidas (verde neon, vinho, rosa, azul bebê, marinho...) e personalizado com cor principal + destaque (mescla), com prévia ao vivo. Fica salvo por aparelho.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/database.dart';
 import '../data/tema.dart';
 
 /// Aba Ajustes: aparência do app (modo claro/escuro/sistema e cores).
@@ -12,6 +13,20 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  bool _autoSync = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarAutoSync();
+  }
+
+  Future<void> _carregarAutoSync() async {
+    final v = await Db.i.getSetting('auto_sync_on');
+    if (!mounted) return;
+    setState(() => _autoSync = v != '0');
+  }
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
@@ -172,6 +187,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 'As cores ficam salvas neste aparelho.',
                 style: tema.textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ─── Sincronização automática ───
+            Card(
+              child: SwitchListTile(
+                value: _autoSync,
+                onChanged: (v) async {
+                  setState(() => _autoSync = v);
+                  await Db.i.setSetting('auto_sync_on', v ? '1' : '0');
+                },
+                title: const Text('Sincronização automática'),
+                subtitle: const Text(
+                    'Sincroniza ao abrir o app, de hora em hora e ao voltar para ele.'),
+                secondary: const Icon(Icons.sync),
               ),
             ),
           ],
