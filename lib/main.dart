@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'data/atualizacoes.dart';
 import 'data/auto_sync.dart';
 import 'data/database.dart';
 import 'data/models.dart';
@@ -48,6 +49,8 @@ Future<void> main() async {
   }
   // Sincronização automática: ao abrir, de hora em hora e ao voltar.
   AutoSync.iniciar();
+  // Confere em segundo plano se saiu uma versão nova do app.
+  Atualizacoes.verificar();
   runApp(const DindinApp());
 }
 

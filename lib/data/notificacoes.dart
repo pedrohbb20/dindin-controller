@@ -48,6 +48,31 @@ class Notificacoes {
     linux: LinuxNotificationDetails(),
   );
 
+  static const NotificationDetails _detalhesAtualizacao = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'dindin_atualizacoes',
+      'Atualizações do app',
+      channelDescription: 'Aviso quando sai uma versão nova do Dindin',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+    linux: LinuxNotificationDetails(),
+  );
+
+  /// Avisa (uma vez por versão) que saiu uma versão nova do app.
+  static Future<void> mostrarAtualizacao(String versao) async {
+    if (!_pronto) await iniciar();
+    if (!_pronto) return;
+    try {
+      await _plugin.show(
+        id: 2,
+        title: 'Nova versão do Dindin: $versao',
+        body: 'Abra o app para ver o link de download no Resumo.',
+        notificationDetails: _detalhesAtualizacao,
+      );
+    } catch (_) {}
+  }
+
   /// Cancela e reagenda os lembretes: às 9h do dia de cada vencimento
   /// (as 4 próximas ocorrências de cada conta).
   static Future<void> programarVencimentos(List<ContaPrevista> contas) async {

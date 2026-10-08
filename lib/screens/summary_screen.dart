@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../data/atualizacoes.dart';
 import '../data/database.dart';
 import '../data/models.dart';
 import '../data/tema.dart';
@@ -48,6 +50,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
   int _pendentes = 0; // lançamentos importados aguardando conferência
   int _pares = 0; // possíveis transferências entre contas
   int _saldoDisponivel = 0; // carteira + contas (sem cartões e reserva)
+  String? _novaTag; // versão nova do app (ex.: "v1.7.2"), se houver
+  String? _novaUrl; // link direto para baixar a versão nova
   List<ContaPrevista> _contasPrevistas = []; // contas fixas cadastradas
 
   @override
@@ -90,6 +94,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _contasPrevistas = contasPrevistas;
       _carregando = false;
     });
+    // Aviso de versão nova: mostra o que está guardado e confere de novo em
+    // segundo plano (o resultado atualiza o aviso sozinho).
+    await _atualizarAviso();
+    Atualizacoes.verificar().then((_) => _atualizarAviso());
   }
 
   void _mudarMes(int delta) {
@@ -125,6 +133,88 @@ class _SummaryScreenState extends State<SummaryScreen> {
       ));
     }
     return lista;
+  }
+
+  /// Aviso de versão nova: lê o que está guardado no banco (some quando o
+  /// usuário toca em "depois" para aquela versão).
+  Future<void> _atualizarAviso() async {
+    final tag = await Db.i.getSetting('app_update_tag') ?? '';
+    final url = await Db.i.getSetting('app_update_url') ?? '';
+    final ignorada = await Db.i.getSetting('app_update_ignorada') ?? '';
+    if (!mounted) return;
+    setState(() {
+      _novaTag = (tag.isNotEmpty && tag != ignorada) ? tag : null;
+      _novaUrl = url;
+    });
+  }
+
+  Future<void> _baixarAtualizacao() async {
+    final url = _novaUrl ?? '';
+    if (url.isEmpty) return;
+    var abriu = false;
+    try {
+      abriu = await launchUrl(Uri.parse(url),
+          mode: LaunchMode.externalApplication);
+    } catch (_) {
+      abriu = false;
+    }
+    if (!abriu && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Não consegui abrir o link. Acesse github.com/pedrohbb20/dindin-controller/releases')));
+    }
+  }
+
+  Future<void> _dispensarAtualizacao() async {
+    final tag = _novaTag;
+    if (tag == null) return;
+    await Db.i.setSetting('app_update_ignorada', tag);
+    if (!mounted) return;
+    setState(() => _novaTag = null);
+  }
+
+  /// Cartão que aparece quando saiu uma versão nova do app (com o botão
+  /// Baixar apontando direto para o arquivo da release).
+  List<Widget> _secaoAtualizacao(BuildContext context) {
+    final tag = _novaTag;
+    if (tag == null || tag.isEmpty) return [];
+    final cs = Theme.of(context).colorScheme;
+    return [
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: Row(
+            children: [
+              Icon(Icons.system_update_alt, color: cs.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Nova versão $tag disponível',
+                        style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 2),
+                    Text('Baixe e instale por cima para atualizar.',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Depois',
+                onPressed: _dispensarAtualizacao,
+                icon: const Icon(Icons.close, size: 20),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: _baixarAtualizacao,
+                icon: const Icon(Icons.download, size: 18),
+                label: const Text('Baixar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
   }
 
   Future<void> _abrirContas() async {
@@ -503,6 +593,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ─── Aviso de versão nova do app ───
+          ..._secaoAtualizacao(context),
+
           // ─── Seletor de mês ───
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

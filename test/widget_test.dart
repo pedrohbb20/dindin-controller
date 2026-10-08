@@ -1,6 +1,7 @@
 // Testes de unidade do Dindin Controller.
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:dindin_controller/data/atualizacoes.dart';
 import 'package:dindin_controller/data/models.dart';
 import 'package:dindin_controller/data/transferencias.dart';
 
@@ -160,6 +161,18 @@ void main() {
       expect(decodeParesIgnorados('nada'), isEmpty);
       expect(decodeParesIgnorados('["1:2","3:4"]'), {'1:2', '3:4'});
       expect(encodeParesIgnorados({'1:2'}), '["1:2"]');
+    });
+  });
+
+  group('atualizações do app', () {
+    test('compara versões com v, sem v e com pedaços faltando', () {
+      expect(Atualizacoes.ehMaisNova('v1.7.2', '1.7.1'), isTrue);
+      expect(Atualizacoes.ehMaisNova('1.7.1', 'v1.7.2'), isFalse);
+      expect(Atualizacoes.ehMaisNova('v1.7.1', '1.7.1'), isFalse);
+      expect(Atualizacoes.ehMaisNova('v1.7', '1.7.0'), isFalse);
+      expect(Atualizacoes.ehMaisNova('v1.10.0', '1.9.9'), isTrue);
+      expect(Atualizacoes.ehMaisNova('v2.0.0', '1.99.99'), isTrue);
+      expect(Atualizacoes.ehMaisNova('v1.7.2', '1.7.2'), isFalse);
     });
   });
 }
