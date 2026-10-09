@@ -12,6 +12,10 @@ import 'sync.dart';
 class AutoSync {
   AutoSync._();
 
+  /// Avisa as telas quando uma sincronização automática muda algo no banco
+  /// (quem escuta deve se recarregar). Vale para o PC e o celular.
+  static final ValueNotifier<int> avisoTela = ValueNotifier<int>(0);
+
   static Timer? _relogio;
   static DateTime? ultima;
   static bool _emAndamento = false;
@@ -36,8 +40,11 @@ class AutoSync {
     }
     _emAndamento = true;
     try {
-      await Sync.silencioso();
+      final r = await Sync.sincronizar();
       ultima = DateTime.now();
+      if (r.ok && (r.enviados > 0 || r.recebidos > 0)) {
+        avisoTela.value++; // as telas abertas se recarregam sozinhas
+      }
     } catch (_) {
       // sem internet ou nuvem fora: tenta de novo no próximo ciclo
     } finally {

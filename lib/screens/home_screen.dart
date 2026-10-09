@@ -27,6 +27,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // Sincronização silenciosa ao abrir (respeita a opção de Ajustes e a
     // nuvem; de hora em hora o AutoSync tenta de novo sozinho).
     WidgetsBinding.instance.addPostFrameCallback((_) => AutoSync.tentarAgora());
+    // Quando a sincronização automática traz novidades, as telas recarregam.
+    AutoSync.avisoTela.addListener(_recarregar);
+  }
+
+  @override
+  void dispose() {
+    AutoSync.avisoTela.removeListener(_recarregar);
+    super.dispose();
   }
 
   void _recarregar() => setState(() => _versao++);
