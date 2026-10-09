@@ -251,11 +251,20 @@ class Sync {
 
     // 1) PUXAR (nuvem → local)
     var recebidos = 0;
+    final vistos = <String>{}; // a nuvem pode mudar durante a leitura paginada
     for (final r in remotas) {
       final sid = r['sync_id'] as String;
+      if (!vistos.add(sid)) continue; // linha repetida na paginação: pula
       final local = locaisPorSync[sid];
       if (local == null) {
-        await db.rawInsert(tabela, _paraLocalSimples(tabela, r));
+        // Confere no banco vivo: se a linha já chegou (ex: o outro aparelho
+        // sincronizou no meio), atualiza em vez de furar o código único.
+        final jaId = await db.idPorSync(tabela, sid);
+        if (jaId == null) {
+          await db.rawInsert(tabela, _paraLocalSimples(tabela, r));
+        } else {
+          await db.rawUpdate(tabela, jaId, _paraLocalSimples(tabela, r));
+        }
         recebidos++;
       } else if (_maisNovo(r['updated_at'], local['updated_at'])) {
         await db.rawUpdate(tabela, local['id'] as int, _paraLocalSimples(tabela, r));
@@ -313,8 +322,10 @@ class Sync {
 
     // 1) PUXAR (nuvem → local)
     var recebidos = 0;
+    final vistos = <String>{}; // a nuvem pode mudar durante a leitura paginada
     for (final r in remotas) {
       final sid = r['sync_id'] as String;
+      if (!vistos.add(sid)) continue; // linha repetida na paginação: pula
       Map<String, Object?>? local;
       for (final l in locais) {
         if (l['sync_id'] == sid) {
@@ -329,7 +340,14 @@ class Sync {
           _transacaoParaLocal(r, contaPorSync, catPorSync, avisos);
       if (convertida == null) continue;
       if (local == null) {
-        await db.rawInsert('transactions', convertida);
+        // Confere no banco vivo: se a linha já chegou (ex: o outro aparelho
+        // sincronizou no meio), atualiza em vez de furar o código único.
+        final jaId = await db.idPorSync('transactions', sid);
+        if (jaId == null) {
+          await db.rawInsert('transactions', convertida);
+        } else {
+          await db.rawUpdate('transactions', jaId, convertida);
+        }
         recebidos++;
       } else {
         await db.rawUpdate('transactions', local['id'] as int, convertida);

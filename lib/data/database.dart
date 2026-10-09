@@ -624,6 +624,14 @@ class Db {
     return db.query(tabela);
   }
 
+  /// Id local de um registro pelo seu código de sincronização (ou null).
+  Future<int?> idPorSync(String tabela, String syncId) async {
+    final db = await database;
+    final rows = await db.query(tabela,
+        columns: ['id'], where: 'sync_id = ?', whereArgs: [syncId], limit: 1);
+    return rows.isEmpty ? null : rows.first['id'] as int;
+  }
+
   Future<int> rawInsert(String tabela, Map<String, Object?> valores) async {
     final db = await database;
     return db.insert(tabela, valores);
