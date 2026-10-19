@@ -2,6 +2,9 @@
 
 Aplicativo **Dindin Controller**: clone pessoal do Money Tracker (Flutter), para Linux (PC) e Android (celular), com sincronização em nuvem.
 
+## v1.7.5 (19/10/2026)
+- **Categoria Repasse / Reembolso**: lançamentos que são pagos e depois devolvidos (repasse de terceiros, reembolsos de amigos e familiares) agora podem ficar nessa categoria e deixam de contar nos totais de Receitas e Despesas do Resumo e no gráfico por categoria. O saldo das contas continua certo, porque o dinheiro entra e sai de verdade.
+
 ## v1.7.4 (09/10/2026)
 - Correção: quando a sincronização automática trazia novidades (lançamentos novos da nuvem ou de outro aparelho), o banco atualizava mas as telas abertas continuavam mostrando os dados antigos até puxar para recarregar. Agora o app avisa as telas e elas se atualizam sozinhas, no PC e no celular.
 

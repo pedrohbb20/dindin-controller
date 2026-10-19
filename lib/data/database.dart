@@ -17,6 +17,10 @@ class Db {
 
   static const _uuid = Uuid();
 
+  /// Categoria de lançamentos de repasse/reembolso: o dinheiro entra e sai,
+  /// então não conta como receita nem como despesa nos resumos.
+  static const categoriaRepasse = 'Repasse / Reembolso';
+
   /// Tabelas que participam da sincronização.
   static const tabelasSync = [
     'accounts',
@@ -98,11 +102,13 @@ class Db {
       {'name': 'Compras', 'type': 'expense', 'icon': 'shopping_bag', 'color_value': 0xFFD81B60},
       {'name': 'Contas e Serviços', 'type': 'expense', 'icon': 'receipt_long', 'color_value': 0xFF546E7A},
       {'name': 'Outros', 'type': 'expense', 'icon': 'more_horiz', 'color_value': 0xFF757575},
+      {'name': 'Repasse / Reembolso', 'type': 'expense', 'icon': 'swap_horiz', 'color_value': 0xFF607D8B},
       // Receitas
       {'name': 'Salário', 'type': 'income', 'icon': 'work', 'color_value': 0xFF2E7D32},
       {'name': 'Renda Extra', 'type': 'income', 'icon': 'trending_up', 'color_value': 0xFF43A047},
       {'name': 'Investimentos', 'type': 'income', 'icon': 'savings', 'color_value': 0xFF00897B},
       {'name': 'Outros', 'type': 'income', 'icon': 'card_giftcard', 'color_value': 0xFF757575},
+      {'name': 'Repasse / Reembolso', 'type': 'income', 'icon': 'swap_horiz', 'color_value': 0xFF607D8B},
     ];
     for (final c in categorias) {
       await db.insert('categories', _carimbar(c));
@@ -492,11 +498,13 @@ class Db {
   Future<Map<String, int>> monthTotals(String month) async {
     final db = await database;
     final rows = await db.rawQuery('''
-      SELECT type, COALESCE(SUM(amount_cents), 0) AS total
-      FROM transactions
-      WHERE date LIKE ? AND type IN ('income', 'expense') AND deleted = 0
-      GROUP BY type
-    ''', ['$month%']);
+      SELECT t.type, COALESCE(SUM(t.amount_cents), 0) AS total
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = t.category_id
+      WHERE t.date LIKE ? AND t.type IN ('income', 'expense') AND t.deleted = 0
+        AND (c.name IS NULL OR c.name <> ?)
+      GROUP BY t.type
+    ''', ['$month%', categoriaRepasse]);
     final result = {'income': 0, 'expense': 0};
     for (final r in rows) {
       result[r['type'] as String] = (r['total'] as num).toInt();
@@ -516,9 +524,10 @@ class Db {
       FROM transactions t
       JOIN categories c ON c.id = t.category_id
       WHERE t.type = ? AND t.date LIKE ? AND t.deleted = 0
+        AND c.name <> ?
       GROUP BY t.category_id
       ORDER BY total DESC
-    ''', [type, '$month%']);
+    ''', [type, '$month%', categoriaRepasse]);
     return rows
         .map((m) => CategoryTotal(
               name: m['name'] as String,
