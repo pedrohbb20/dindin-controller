@@ -18,6 +18,8 @@ class _SyncScreenState extends State<SyncScreen> {
   bool _ocupado = false;
   bool _esconderSenha = true;
   String? _ultimaSync;
+  bool _temSessaoSalva = false;
+  bool _recuperandoSessao = false;
   String? _mensagem;
   bool _mensagemErro = false;
   bool _mensagemAviso = false;
@@ -26,6 +28,23 @@ class _SyncScreenState extends State<SyncScreen> {
   void initState() {
     super.initState();
     _carregarUltima();
+    _tentarRecuperarSessao();
+  }
+
+  /// Se o app abriu sem internet, a sessão salva não foi restaurada. Ao
+  /// entrar nesta tela, tenta de novo antes de mostrar o formulário de login.
+  Future<void> _tentarRecuperarSessao() async {
+    if (Sync.logado) return;
+    setState(() => _recuperandoSessao = true);
+    final ok = await Sync.tentarRecuperarSessao();
+    final tem = await Sync.temSessaoSalva();
+    if (!mounted) return;
+    setState(() {
+      _temSessaoSalva = tem;
+      _recuperandoSessao = false;
+      if (ok) _mensagem = 'Sessão recuperada! Você está conectado de novo.';
+    });
+    if (ok) _sincronizarAgora();
   }
 
   @override
@@ -149,7 +168,55 @@ class _SyncScreenState extends State<SyncScreen> {
                     'no aplicativo.',
               ],
             )
-          else if (!logado)
+          else if (!logado) ...[
+            if (_recuperandoSessao)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Reconectando com a nuvem...')),
+                    ],
+                  ),
+                ),
+              )
+            else if (_temSessaoSalva) ...[
+              Card(
+                color: cs.secondaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: const [
+                        Icon(Icons.cloud_off_outlined),
+                        SizedBox(width: 8),
+                        Expanded(
+                            child: Text('Sem conexão com a nuvem',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16))),
+                      ]),
+                      const SizedBox(height: 8),
+                      const Text('A sua conta continua salva neste aparelho. '
+                          'Quando a internet voltar, toque em "Tentar de novo".'),
+                      const SizedBox(height: 12),
+                      FilledButton.tonalIcon(
+                        onPressed: _ocupado ? null : _tentarRecuperarSessao,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tentar de novo'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -207,8 +274,8 @@ class _SyncScreenState extends State<SyncScreen> {
                   ],
                 ),
               ),
-            )
-          else
+            ),
+          ] else
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),

@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'database.dart';
@@ -109,6 +110,49 @@ class Sync {
   static Future<void> sair() async {
     if (!configurado || !_iniciado) return;
     await _cli.auth.signOut();
+  }
+
+  // ─── Recuperação da sessão (internet instável) ───
+
+  /// Acha a chave onde o pacote guarda a sessão no aparelho.
+  static String? _chaveSessaoSalva(Iterable<String> chaves) {
+    for (final k in chaves) {
+      if (k.contains('-auth-token')) return k;
+    }
+    return null;
+  }
+
+  /// Existe uma sessão salva no aparelho? (Mesmo que não tenha sido
+  /// restaurada na abertura, por exemplo quando a internet falhou.)
+  static Future<bool> temSessaoSalva() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final chave = _chaveSessaoSalva(prefs.getKeys());
+      if (chave == null) return false;
+      final v = prefs.getString(chave);
+      return v != null && v.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Tenta restaurar a sessão salva no aparelho. Serve para quando o app
+  /// abre sem internet e o pacote não consegue renovar o acesso sozinho:
+  /// em vez de pedir login, o app recupera a conta e volta a sincronizar.
+  static Future<bool> tentarRecuperarSessao() async {
+    if (!configurado || !_iniciado) return false;
+    if (_cli.auth.currentUser != null) return true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final chave = _chaveSessaoSalva(prefs.getKeys());
+      if (chave == null) return false;
+      final salvo = prefs.getString(chave);
+      if (salvo == null || salvo.isEmpty) return false;
+      await _cli.auth.recoverSession(salvo);
+      return _cli.auth.currentUser != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ─── Sincronização ───

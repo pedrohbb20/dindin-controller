@@ -31,7 +31,14 @@ class AutoSync {
   /// Tenta sincronizar agora (respeita a opção de Ajustes e o estado da nuvem).
   static Future<void> tentarAgora() async {
     if (_emAndamento) return;
-    if (!Sync.configurado || !Sync.logado) return;
+    if (!Sync.configurado) return;
+    if (!Sync.logado) {
+      // A internet pode ter falhado na abertura do app: antes de desistir,
+      // tenta restaurar a sessão que ficou salva no aparelho.
+      final recuperou = await Sync.tentarRecuperarSessao();
+      if (!recuperou) return;
+      avisoTela.value++; // a tela de sincronização muda para "conectado"
+    }
     try {
       final opcao = await Db.i.getSetting('auto_sync_on');
       if (opcao == '0') return;
